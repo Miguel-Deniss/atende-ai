@@ -14,8 +14,8 @@ import Link from "next/link";
 export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { login } = useAuth();
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
+  const { register } = useAuth();
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "", companyName: "", phone: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -31,9 +31,11 @@ export default function RegisterPage() {
     if (!form.email.trim()) errs.email = "Email é obrigatório";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = "Email inválido";
     if (!form.password) errs.password = "Senha é obrigatória";
-    else if (form.password.length < 6) errs.password = "Mínimo 6 caracteres";
+    else if (form.password.length < 8) errs.password = "Mínimo 8 caracteres";
+    else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) errs.password = "Deve conter maiúscula, minúscula e número";
     if (!form.confirmPassword) errs.confirmPassword = "Confirme a senha";
     else if (form.password !== form.confirmPassword) errs.confirmPassword = "Senhas não conferem";
+    if (!form.companyName.trim()) errs.companyName = "Nome da empresa é obrigatório";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -42,27 +44,30 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!validate()) return;
 
-    const existing = localStorage.getItem("atendeai_user");
-    if (existing) {
-      const user = JSON.parse(existing);
-      if (user.email === form.email) {
-        toast("Este email já possui cadastro. Faça login.", "error");
-        return;
-      }
-    }
-
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-
-    login(form.email.trim(), form.name.trim(), "Proprietário");
-
-    toast("Conta criada com sucesso! Bem-vindo ao AtendeAI.");
+    const result = await register(form.name.trim(), form.email.trim(), form.password, form.companyName.trim(), form.phone.trim() || undefined);
     setLoading(false);
-    router.push("/dashboard");
+
+    if (result.success) {
+      toast("Conta criada com sucesso! Bem-vindo ao AtendeAI.");
+      router.push("/dashboard");
+    } else {
+      toast(result.error || "Erro ao criar conta", "error");
+    }
   };
 
   const passwordsMatch = form.confirmPassword && form.password === form.confirmPassword;
   const passwordsMismatch = form.confirmPassword && form.password !== form.confirmPassword;
+
+  const passwordStrength = form.password
+    ? [
+      form.password.length >= 8,
+      /[a-z]/.test(form.password),
+      /[A-Z]/.test(form.password),
+      /\d/.test(form.password),
+      /[^a-zA-Z0-9]/.test(form.password),
+    ].filter(Boolean).length
+    : 0;
 
   return (
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
@@ -111,9 +116,23 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="companyName">Nome da empresa</Label>
+              <Input id="companyName" placeholder="Minha Empresa Ltda" value={form.companyName}
+                onChange={(e) => update("companyName", e.target.value)}
+                className={errors.companyName ? "border-red-500/50" : ""} />
+              {errors.companyName && <p className="text-xs text-red-400">{errors.companyName}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefone (opcional)</Label>
+              <Input id="phone" placeholder="(11) 99999-8888" value={form.phone}
+                onChange={(e) => update("phone", e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="password">Senha</Label>
               <div className="relative">
-                <Input id="password" type={showPassword ? "text" : "password"} placeholder="Mínimo 6 caracteres"
+                <Input id="password" type={showPassword ? "text" : "password"} placeholder="Mínimo 8 caracteres"
                   value={form.password}
                   onChange={(e) => update("password", e.target.value)}
                   className={`pr-10 ${errors.password ? "border-red-500/50" : ""}`} />
@@ -122,6 +141,15 @@ export default function RegisterPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {form.password && (
+                <div className="flex gap-1 mt-1">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <div key={level} className={`h-1 flex-1 rounded-full transition-colors ${
+                      passwordStrength >= level ? "bg-blue-400" : "bg-gray-700"
+                    }`} />
+                  ))}
+                </div>
+              )}
               {errors.password && <p className="text-xs text-red-400">{errors.password}</p>}
             </div>
 
@@ -148,8 +176,8 @@ export default function RegisterPage() {
 
             <p className="text-xs text-gray-600 text-center">
               Ao criar sua conta, você aceita nossos{" "}
-              <Link href="#" className="text-blue-400 hover:underline">Termos de uso</Link> e{" "}
-              <Link href="#" className="text-blue-400 hover:underline">Política de privacidade</Link>.
+              <Link href="/terms" className="text-blue-400 hover:underline">Termos de uso</Link> e{" "}
+              <Link href="/privacy" className="text-blue-400 hover:underline">Política de privacidade</Link>.
             </p>
           </form>
 

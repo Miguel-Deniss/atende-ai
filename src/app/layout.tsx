@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import { Providers } from "@/components/Providers";
+import { CookieConsent } from "@/components/CookieConsentWrapper";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -31,7 +32,10 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="dark">
       <body className={`${poppins.variable} antialiased`}>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <CookieConsent />
+        </Providers>
       </body>
     </html>
   );

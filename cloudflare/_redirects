@@ -1,0 +1,8 @@
+# Cloudflare Pages Redirects
+# https://developers.cloudflare.com/pages/platform/redirects/
+
+# API routes (preserve path)
+/api/*  /api/:splat  200
+
+# SPA fallback to Next.js
+/*  /index.html  200

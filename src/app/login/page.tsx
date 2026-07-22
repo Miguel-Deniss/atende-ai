@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { MessageSquareMore, ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
+import { MessageSquareMore, ArrowRight, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,16 +17,18 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [showTwoFactor, setShowTwoFactor] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
-    const newErrors: { email?: string; password?: string } = {};
+    const newErrors: Record<string, string> = {};
     if (!email.trim()) newErrors.email = "Email é obrigatório";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = "Email inválido";
     if (!password) newErrors.password = "Senha é obrigatória";
-    else if (password.length < 6) newErrors.password = "Senha deve ter no mínimo 6 caracteres";
+    else if (password.length < 6) newErrors.password = "Mínimo 6 caracteres";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -36,14 +38,20 @@ export default function LoginPage() {
     if (!validate()) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-
-    login(email, "Admin", "Proprietário");
-
-    toast("Login realizado com sucesso! Bem-vindo de volta.");
+    const result = await login(email, password, showTwoFactor ? totpCode : undefined);
     setLoading(false);
-    router.push("/dashboard");
-  };
+
+    if (result.requiresTwoFactor) {
+      setShowTwoFactor(true);
+      toast("Insira o código de autenticação", "info");
+      return;
+    }
+
+    if (result.success) {
+      toast("Login realizado com sucesso!");
+      router.push("/dashboard");
+      router.refresh();
+    }
 
   return (
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
@@ -75,52 +83,63 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setErrors((prev) => ({ ...prev, email: undefined })); }}
-                className={errors.email ? "border-red-500/50 focus-visible:ring-red-500/50" : ""}
-              />
-              {errors.email && <p className="text-xs text-red-400">{errors.email}</p>}
-            </div>
+            {!showTwoFactor ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setErrors((prev) => ({ ...prev, email: "" })); }}
+                    className={errors.email ? "border-red-500/50" : ""}
+                    autoComplete="email"
+                  />
+                  {errors.email && <p className="text-xs text-red-400">{errors.email}</p>}
+                </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Senha</Label>
-                <button type="button" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-                  Esqueceu a senha?
-                </button>
-              </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setErrors((prev) => ({ ...prev, password: undefined })); }}
-                  className={`pr-10 ${errors.password ? "border-red-500/50 focus-visible:ring-red-500/50" : ""}`}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Senha</Label>
+                    <Link href="/forgot-password" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                      Esqueceu a senha?
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <Input id="password" type={showPassword ? "text" : "password"} placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); setErrors((prev) => ({ ...prev, password: "" })); }}
+                      className={`pr-10 ${errors.password ? "border-red-500/50" : ""}`}
+                      autoComplete="current-password"
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {errors.password && <p className="text-xs text-red-400">{errors.password}</p>}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 mb-4">
+                  <ShieldCheck className="w-5 h-5 text-blue-400" />
+                  <p className="text-sm text-gray-300">Autenticação em dois fatores</p>
+                </div>
+                <Label htmlFor="totp">Código de verificação</Label>
+                <Input id="totp" type="text" placeholder="000000" maxLength={6}
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="text-center text-2xl tracking-widest"
+                  autoFocus
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
               </div>
-              {errors.password && <p className="text-xs text-red-400">{errors.password}</p>}
-            </div>
+            )}
 
             <Button type="submit" className="w-full group" size="lg" disabled={loading}>
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  Entrar
+                  {showTwoFactor ? "Verificar" : "Entrar"}
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
@@ -139,4 +158,5 @@ export default function LoginPage() {
       </motion.div>
     </div>
   );
+}
 }

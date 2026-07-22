@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -122,6 +123,17 @@ export function Sidebar() {
             );
           })}
         </nav>
+
+        {user?.role === "ADMIN" && (
+          <div className="px-3 py-1">
+            <Link href="/admin"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all duration-200">
+              <Shield className="w-4 h-4" />
+              {!collapsed && <span>Admin</span>}
+            </Link>
+          </div>
+        )}
 
         {!collapsed && user && (
           <div className="px-3 py-2 border-t border-border/50">

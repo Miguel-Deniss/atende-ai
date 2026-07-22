@@ -1,129 +1,87 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, ArrowRight, Star, Loader2, CreditCard, Lock } from "lucide-react";
+import { Check, ArrowRight, Star, Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useToast } from "@/components/ui/toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const planData = {
-  starter: {
-    name: "Starter",
-    price: "R$ 59",
-    period: "/mês",
-    features: [
-      "IA treinada para seu negócio",
-      "Atendimento automático 24h",
-      "Até 300 conversas/mês",
-      "Lembretes automáticos",
-    ],
-  },
-  pro: {
-    name: "Pro",
-    price: "R$ 119",
-    period: "/mês",
-    features: [
-      "IA treinada para seu negócio",
-      "Atendimento automático 24h",
-      "Até 2.000 conversas/mês",
-      "Dashboard completo",
-      "Agendamento automático",
-      "Relatórios e estatísticas",
-      "Histórico de clientes",
-      "Lembretes automáticos",
-    ],
-  },
-  business: {
-    name: "Business",
-    price: "R$ 249",
-    period: "/mês",
-    features: [
-      "IA treinada para seu negócio",
-      "Atendimento automático 24h",
-      "Conversas ilimitadas",
-      "Dashboard completo",
-      "Agendamento automático",
-      "Relatórios e estatísticas",
-      "Multiatendentes",
-      "Integrações avançadas",
-      "Múltiplas unidades",
-      "Suporte prioritário 24h",
-    ],
-  },
+  starter: { name: "Starter", price: "R$ 59", period: "/mês", features: ["IA treinada para seu negócio", "Atendimento automático 24h", "Até 300 conversas/mês", "Lembretes automáticos"] },
+  pro: { name: "Pro", price: "R$ 119", period: "/mês", features: ["IA treinada para seu negócio", "Atendimento automático 24h", "Até 2.000 conversas/mês", "Dashboard completo", "Agendamento automático", "Relatórios e estatísticas", "Histórico de clientes", "Lembretes automáticos"] },
+  business: { name: "Business", price: "R$ 249", period: "/mês", features: ["IA treinada para seu negócio", "Atendimento automático 24h", "Conversas ilimitadas", "Dashboard completo", "Agendamento automático", "Relatórios e estatísticas", "Multiatendentes", "Integrações avançadas", "Múltiplas unidades", "Suporte prioritário 24h"] },
 };
 
 type PlanKey = keyof typeof planData;
 
 export default function SubscriptionPage() {
-  const [currentPlan, setCurrentPlan] = useLocalStorage<PlanKey>("atendeai_plan", "pro");
-  const [paymentModal, setPaymentModal] = useState<PlanKey | null>(null);
-  const [paymentData, setPaymentData] = useState({ cardNumber: "", expiry: "", cvc: "", name: "" });
-  const [processing, setProcessing] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<"form" | "processing" | "success">("form");
   const { toast } = useToast();
+  const [currentPlan, setCurrentPlan] = useState<PlanKey>("pro");
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanKey | null>(null);
+
+  useEffect(() => {
+    fetch("/api/subscription", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && d.data?.planType) {
+          setCurrentPlan(d.data.planType.toLowerCase() as PlanKey);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const nextBilling = new Date();
   nextBilling.setDate(nextBilling.getDate() + 30);
 
-  const handlePlanClick = (plan: PlanKey) => {
-    if (plan === currentPlan) return;
-    setPaymentModal(plan);
-    setPaymentStep("form");
-    setPaymentData({ cardNumber: "", expiry: "", cvc: "", name: "" });
-  };
+  const handlePlanChange = async () => {
+    if (!selectedPlan || selectedPlan === currentPlan) return;
 
-  const formatCardNumber = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 16);
-    return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
-  };
-
-  const formatExpiry = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 4);
-    if (digits.length > 2) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-    return digits;
-  };
-
-  const handlePayment = async () => {
-    if (!paymentData.name.trim() || paymentData.cardNumber.replace(/\s/g, "").length < 13 || paymentData.expiry.length < 5 || paymentData.cvc.length < 3) {
-      toast("Preencha todos os dados do cartão corretamente", "error");
-      return;
-    }
-    setPaymentStep("processing");
     setProcessing(true);
-    await new Promise((r) => setTimeout(r, 2500));
-    setProcessing(false);
-    setPaymentStep("success");
-    await new Promise((r) => setTimeout(r, 1200));
-    if (paymentModal) {
-      setCurrentPlan(paymentModal);
-      toast(`Plano alterado para ${planData[paymentModal].name} com sucesso!`);
+    try {
+      const res = await fetch("/api/subscription", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planType: selectedPlan.toUpperCase() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCurrentPlan(selectedPlan);
+        toast(`Plano alterado para ${planData[selectedPlan].name} com sucesso!`);
+      } else {
+        toast(data.error || "Erro ao alterar plano", "error");
+      }
+    } catch {
+      toast("Erro ao conectar com o servidor", "error");
     }
-    setPaymentModal(null);
-    setPaymentStep("form");
+    setProcessing(false);
+    setSelectedPlan(null);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <h1 className="text-2xl font-bold text-white mb-1">Minha assinatura</h1>
         <p className="text-gray-500 text-sm">Gerencie seu plano e pagamentos.</p>
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
         <Card className="bg-card/50 border-border/50 max-w-2xl">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -142,7 +100,6 @@ export default function SubscriptionPage() {
                 Próxima cobrança: {nextBilling.toLocaleDateString("pt-BR")}
               </span>
             </div>
-
             <div className="grid sm:grid-cols-2 gap-2 mb-6">
               {planData[currentPlan].features.map((feature) => (
                 <div key={feature} className="flex items-center gap-2 text-sm text-gray-300">
@@ -151,43 +108,20 @@ export default function SubscriptionPage() {
                 </div>
               ))}
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button variant="outline" onClick={() => toast("Gerenciamento de pagamento pelo Stripe. Em breve!")}>
-                Gerenciar pagamento
-              </Button>
-              <Button
-                variant="ghost"
-                className="text-gray-400 hover:text-red-400"
-                onClick={() => {
-                  toast("Assinatura cancelada. Você terá acesso até o fim do período.", "info");
-                }}
-              >
-                Cancelar assinatura
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
         <h2 className="text-lg font-semibold text-white mb-4">Trocar de Plano</h2>
         <div className="grid sm:grid-cols-3 gap-4">
           {(Object.keys(planData) as PlanKey[]).map((key) => {
             const plan = planData[key];
             const isCurrent = key === currentPlan;
             return (
-              <Card
-                key={key}
-                className={`bg-card/50 border-border/50 transition-all duration-300 ${
-                  isCurrent ? "border-blue-500/50 ring-1 ring-blue-500/20" : "hover:border-blue-500/30 cursor-pointer"
-                }`}
-                onClick={() => !isCurrent && handlePlanClick(key)}
-              >
+              <Card key={key}
+                className={`bg-card/50 border-border/50 transition-all duration-300 ${isCurrent ? "border-blue-500/50 ring-1 ring-blue-500/20" : "hover:border-blue-500/30 cursor-pointer"}`}
+                onClick={() => !isCurrent && setSelectedPlan(key)}>
                 <CardContent className="p-6 text-center">
                   {isCurrent && (
                     <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-blue-500 to-blue-400 text-xs font-semibold text-white mb-3">
@@ -196,10 +130,7 @@ export default function SubscriptionPage() {
                     </div>
                   )}
                   <h3 className="text-lg font-bold text-white mb-1">{plan.name}</h3>
-                  <p className="text-2xl font-bold text-white mb-4">
-                    {plan.price}
-                    <span className="text-sm font-normal text-gray-500">{plan.period}</span>
-                  </p>
+                  <p className="text-2xl font-bold text-white mb-4">{plan.price}<span className="text-sm font-normal text-gray-500">{plan.period}</span></p>
                   <ul className="text-left space-y-2 mb-6">
                     {plan.features.slice(0, 4).map((f) => (
                       <li key={f} className="flex items-center gap-2 text-xs text-gray-400">
@@ -212,11 +143,8 @@ export default function SubscriptionPage() {
                     )}
                   </ul>
                   {!isCurrent && (
-                    <Button variant="default" className="w-full" onClick={(e) => { e.stopPropagation(); handlePlanClick(key); }}>
-                      <span className="flex items-center gap-1">
-                        Assinar {plan.name}
-                        <ArrowRight className="w-3 h-3" />
-                      </span>
+                    <Button variant="default" className="w-full" onClick={(e) => { e.stopPropagation(); setSelectedPlan(key); }}>
+                      Assinar {plan.name} <ArrowRight className="w-3 h-3 ml-1" />
                     </Button>
                   )}
                 </CardContent>
@@ -226,84 +154,34 @@ export default function SubscriptionPage() {
         </div>
       </motion.div>
 
-      <Modal
-        open={paymentModal !== null}
-        onClose={() => { if (!processing) { setPaymentModal(null); setPaymentStep("form"); } }}
-        title={paymentStep === "success" ? "Pagamento Confirmado!" : paymentStep === "processing" ? "Processando..." : "Finalizar Pagamento"}
-      >
-        {paymentStep === "form" && paymentModal && (
-          <form onSubmit={(e) => { e.preventDefault(); handlePayment(); }} className="space-y-4">
-            <div className="p-4 rounded-xl bg-secondary/30 border border-border/30 mb-4">
-              <p className="text-sm font-medium text-white">Resumo</p>
+      <Modal open={selectedPlan !== null} onClose={() => setSelectedPlan(null)}
+        title={`Alterar para ${selectedPlan ? planData[selectedPlan].name : ""}`}>
+        {selectedPlan && (
+          <div className="space-y-6">
+            <div className="p-4 rounded-xl bg-secondary/30 border border-border/30">
+              <p className="text-sm font-medium text-white">Resumo da alteração</p>
               <p className="text-lg font-bold text-blue-400 mt-1">
-                {planData[paymentModal].name} - {planData[paymentModal].price}
-                <span className="text-sm font-normal text-gray-500">{planData[paymentModal].period}</span>
+                {planData[currentPlan].name} → {planData[selectedPlan].name}
               </p>
+              <p className="text-sm text-gray-400 mt-1">{planData[selectedPlan].price}{planData[selectedPlan].period}</p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="card-name">Nome no cartão</Label>
-              <Input id="card-name" placeholder="Nome como está no cartão" value={paymentData.name}
-                onChange={(e) => setPaymentData((p) => ({ ...p, name: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="card-number">Número do cartão</Label>
-              <div className="relative">
-                <Input id="card-number" placeholder="0000 0000 0000 0000" value={paymentData.cardNumber}
-                  onChange={(e) => setPaymentData((p) => ({ ...p, cardNumber: formatCardNumber(e.target.value) }))}
-                  className="pl-10" />
-                <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="expiry">Validade</Label>
-                <Input id="expiry" placeholder="MM/AA" value={paymentData.expiry}
-                  onChange={(e) => setPaymentData((p) => ({ ...p, expiry: formatExpiry(e.target.value) }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cvc">CVC</Label>
-                <Input id="cvc" placeholder="123" value={paymentData.cvc}
-                  onChange={(e) => setPaymentData((p) => ({ ...p, cvc: e.target.value.replace(/\D/g, "").slice(0, 4) }))} />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs text-gray-500 pt-2">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
               <Lock className="w-3 h-3" />
-              Pagamento 100% seguro. Seus dados não são armazenados.
+              Pagamento processado com segurança via Stripe
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => { setPaymentModal(null); setPaymentStep("form"); }}>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setSelectedPlan(null)} disabled={processing}>
                 Cancelar
               </Button>
-              <Button type="submit" className="flex-1">
-                Pagar {planData[paymentModal].price}
+              <Button className="flex-1" onClick={handlePlanChange} disabled={processing}>
+                {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : `Alterar para ${planData[selectedPlan].name}`}
               </Button>
             </div>
-          </form>
-        )}
-
-        {paymentStep === "processing" && (
-          <div className="text-center py-12">
-            <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto mb-4" />
-            <p className="text-lg font-semibold text-white mb-1">Processando pagamento...</p>
-            <p className="text-sm text-gray-500">Aguarde enquanto confirmamos seu pagamento.</p>
-          </div>
-        )}
-
-        {paymentStep === "success" && (
-          <div className="text-center py-8">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
-              <Check className="w-8 h-8 text-emerald-400" />
-            </div>
-            <p className="text-lg font-semibold text-white mb-1">Pagamento confirmado!</p>
-            <p className="text-sm text-gray-500">Seu plano foi alterado com sucesso.</p>
           </div>
         )}
       </Modal>
     </div>
   );
 }
-
-
