@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { safeVerifyToken } from "@/lib/auth/jwt";
+import { verifyEdgeToken } from "@/lib/auth/jwt-edge";
 
 const PUBLIC_PATHS = [
   "/",
@@ -22,7 +22,7 @@ const PUBLIC_PATHS = [
 
 const AUTH_API_PATHS = ["/api/auth/"];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/api/health") {
@@ -67,19 +67,16 @@ export function middleware(request: NextRequest) {
 
   if (pathname.startsWith("/dashboard")) {
     const accessToken = request.cookies.get("access_token")?.value;
-
-    console.log("TOKEN DASHBOARD:", !!accessToken);
-
+  
+    
+  
     if (!accessToken) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-
-    const payload = safeVerifyToken(accessToken);
-
-    console.log("TOKEN:", accessToken);
-    console.log("PAYLOAD:", payload);
-
-    if (!payload) {
+  
+    try {
+      const payload = await verifyEdgeToken(accessToken);
+    } catch (e) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
   }

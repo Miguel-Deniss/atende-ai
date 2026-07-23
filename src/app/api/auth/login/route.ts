@@ -10,7 +10,6 @@ import { verifyToken } from "@/lib/auth/jwt";
 import speakeasy from "speakeasy";
 
 export async function POST(request: NextRequest) {
-  console.log("🔥 ROTA LOGIN FOI CHAMADA");
   try {
     const body = await request.json();
     const parsed = loginSchema.safeParse(body);
@@ -122,8 +121,6 @@ export async function POST(request: NextRequest) {
     }
 
     await setAuthCookies(user.id, user.companyId, user.role, ip, userAgent);
-    console.log("COOKIE CRIADO PARA:", user.email);
-    console.log("JWT SECRET LOGIN:", process.env.JWT_SECRET);
 
     await prisma.user.update({
       where: { id: user.id },

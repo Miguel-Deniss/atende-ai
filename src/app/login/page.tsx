@@ -16,15 +16,12 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    console.log("BOTÃO FOI CLICADO");
-
     console.log({
       email,
       password,
     });
 
     if (!email || !password) {
-      console.log("EMAIL OU SENHA VAZIOS");
       return;
     }
 
@@ -36,12 +33,10 @@ export default function LoginPage() {
       console.log("RESPOSTA DO AUTH:", result);
 
       if (result.success) {
-        console.log("LOGIN OK");
         window.location.href = "/dashboard";
         return;
       }
 
-      console.log("LOGIN ERRO:", result.error);
 
       alert(result.error);
     } catch (error) {
@@ -64,7 +59,6 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => {
-                console.log("EMAIL DIGITADO:", e.target.value);
                 setEmail(e.target.value);
               }}
               className="w-full border p-3 rounded"
@@ -79,7 +73,6 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => {
-                console.log("SENHA DIGITADA:", e.target.value);
                 setPassword(e.target.value);
               }}
               className="w-full border p-3 rounded"
@@ -90,8 +83,6 @@ export default function LoginPage() {
           <button
             type="submit"
             onClick={() => {
-              console.log("BOTAO CLICADO");
-              alert("CLICOU");
             }}
             className="w-full bg-blue-600 text-white p-3 rounded"
           >

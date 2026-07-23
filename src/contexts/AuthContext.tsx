@@ -60,7 +60,6 @@ export function useAuth() {
 }
 
 async function apiFetch(url: string, options?: RequestInit) {
-  console.log("CHAMANDO API:", url);
 
   const response = await fetch(url, {
     credentials: "include",
@@ -71,8 +70,6 @@ async function apiFetch(url: string, options?: RequestInit) {
 
     ...options,
   });
-
-  console.log("STATUS API:", response.status);
 
   const text = await response.text();
 
@@ -137,15 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }),
       });
 
-      console.log("RESPOSTA LOGIN:", data);
-
       const loggedUser = data.data.user;
 
-      console.log("USUARIO EXTRAIDO:", loggedUser);
-
       setUser(loggedUser);
-
-      console.log("USER SALVO NO CONTEXT:", loggedUser);
 
       return {
         success: true,
