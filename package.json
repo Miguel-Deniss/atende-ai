@@ -56,7 +56,7 @@
     "helmet": "^8.3.0",
     "jose": "^6.2.4",
     "jsonwebtoken": "^9.0.3",
-    "lucide-react": "^0.483.0",
+    "lucide-react": "^1.26.0",
     "multer": "^2.2.0",
     "next": "^15.3.1",
     "next-auth": "^5.0.0-beta.32",
