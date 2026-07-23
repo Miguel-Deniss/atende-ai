@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+
 import { useRouter } from "next/navigation";
 
 interface User {
@@ -9,7 +10,12 @@ interface User {
   email: string;
   role: string;
   companyId: string;
-  companyName?: string;
+  company?: {
+    name: string;
+    status: string;
+    planType: string;
+    subscriptionStatus: string;
+  };
   twoFactorEnabled?: boolean;
 }
 
@@ -20,59 +26,91 @@ interface AuthContextType {
     email: string,
     password: string,
     totpCode?: string
-  ) => Promise<{ success: boolean; requiresTwoFactor?: boolean; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    requiresTwoFactor?: boolean;
+    error?: string;
+  }>;
+
   register: (
     name: string,
     email: string,
     password: string,
     companyName: string,
     phone?: string
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-  login: async () => ({ success: false }),
-  register: async () => ({ success: false }),
-  logout: async () => {},
-  refreshUser: async () => {},
-});
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth precisa estar dentro do AuthProvider");
+  }
+
+  return context;
 }
 
 async function apiFetch(url: string, options?: RequestInit) {
-  const res = await fetch(url, {
+  console.log("CHAMANDO API:", url);
+
+  const response = await fetch(url, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
+
+    headers: {
+      "Content-Type": "application/json",
+    },
+
     ...options,
   });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.error || "Erro interno");
+
+  console.log("STATUS API:", response.status);
+
+  const text = await response.text();
+
+  console.log("STATUS:", response.status);
+  console.log("URL FINAL:", response.url);
+  console.log("HTML RECEBIDO:", text.substring(0, 300));
+
+  if (!text) {
+    throw new Error("Resposta vazia da API");
+  }
+
+  const data = JSON.parse(text);
+
+  console.log("JSON:", data);
+
+  if (!data.success) {
+    throw new Error(data.error || "Erro interno");
+  }
+
   return data;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  console.log("AUTH PROVIDER CARREGOU");
+  const router = useRouter();
 
   const [user, setUser] = useState<User | null>(null);
+
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   const refreshUser = useCallback(async () => {
     try {
       const data = await apiFetch("/api/auth/me");
 
-      console.log("ME RESPONSE:", data);
-      console.log("USER RECEBIDO:", data.data);
+      console.log("USUARIO ATUAL:", data);
 
       setUser(data.data);
     } catch (error) {
-      console.log("ME ERROR:", error);
+      console.log("ERRO REFRESH USER:", error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -84,25 +122,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser]);
 
   const login = useCallback(async (email: string, password: string, totpCode?: string) => {
+    console.log("ENTROU NO AUTH LOGIN");
+
     try {
+      console.log("ENVIANDO LOGIN:", email);
+
       const data = await apiFetch("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password, totpCode }),
+
+        body: JSON.stringify({
+          email,
+          password,
+          totpCode,
+        }),
       });
 
-      if (data.data.requiresTwoFactor) {
-        return { success: true, requiresTwoFactor: true };
-      }
+      console.log("RESPOSTA LOGIN:", data);
 
-      const loggedUser = data.data.user ?? data.data;
+      const loggedUser = data.data.user;
 
-      console.log("LOGIN USER:", loggedUser);
+      console.log("USUARIO EXTRAIDO:", loggedUser);
 
       setUser(loggedUser);
 
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: (err as Error).message };
+      console.log("USER SALVO NO CONTEXT:", loggedUser);
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      console.error("ERRO LOGIN AUTH:", error);
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Erro ao entrar",
+      };
     }
   }, []);
 
@@ -111,12 +165,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const data = await apiFetch("/api/auth/register", {
           method: "POST",
-          body: JSON.stringify({ name, email, password, companyName, phone }),
+          body: JSON.stringify({
+            name,
+            email,
+            password,
+            companyName,
+            phone,
+          }),
         });
-        setUser(data.data.user);
-        return { success: true };
-      } catch (err) {
-        return { success: false, error: (err as Error).message };
+
+        setUser(data.user);
+
+        return {
+          success: true,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Erro ao cadastrar",
+        };
       }
     },
     []
@@ -124,16 +191,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    } catch {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
     } finally {
       setUser(null);
+
       router.push("/login");
     }
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

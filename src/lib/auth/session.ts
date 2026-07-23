@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
-import { verifyToken, signAccessToken, signRefreshToken, verifyRefreshToken } from "./jwt";
+import {
+  verifyToken,
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from "./jwt";
 
 const SESSION_COOKIE_NAME = "session_token";
 const REFRESH_COOKIE_NAME = "refresh_token";
@@ -25,24 +30,42 @@ export async function createSession(
 
 export async function revokeSession(sessionToken: string): Promise<void> {
   await prisma.session.updateMany({
-    where: { sessionToken, isRevoked: false },
-    data: { isRevoked: true },
+    where: {
+      sessionToken,
+      isRevoked: false,
+    },
+    data: {
+      isRevoked: true,
+    },
   });
 }
 
 export async function revokeAllUserSessions(userId: string): Promise<void> {
   await prisma.session.updateMany({
-    where: { userId, isRevoked: false },
-    data: { isRevoked: true },
+    where: {
+      userId,
+      isRevoked: false,
+    },
+    data: {
+      isRevoked: true,
+    },
   });
 }
 
 export async function validateSession(sessionToken: string): Promise<{
   valid: boolean;
-  user?: { id: string; email: string; name: string; role: string; companyId: string };
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    companyId: string;
+  };
 }> {
   const session = await prisma.session.findUnique({
-    where: { sessionToken },
+    where: {
+      sessionToken,
+    },
     include: {
       user: {
         select: {
@@ -57,7 +80,15 @@ export async function validateSession(sessionToken: string): Promise<{
     },
   });
 
-  if (!session || session.isRevoked || session.expiresAt < new Date()) {
+  if (!session) {
+    return { valid: false };
+  }
+
+  if (session.isRevoked) {
+    return { valid: false };
+  }
+
+  if (session.expiresAt < new Date()) {
     return { valid: false };
   }
 
@@ -65,8 +96,12 @@ export async function validateSession(sessionToken: string): Promise<{
     return { valid: false };
   }
 
-  return { valid: true, user: session.user };
+  return {
+    valid: true,
+    user: session.user,
+  };
 }
+
 
 export async function setAuthCookies(
   userId: string,
@@ -75,58 +110,119 @@ export async function setAuthCookies(
   ipAddress?: string,
   userAgent?: string
 ) {
-  const sessionToken = await createSession(userId, ipAddress, userAgent);
-  const accessToken = signAccessToken({ userId, companyId, role });
-  const refreshToken = signRefreshToken(userId, companyId);
+  // Cria sessão no banco
+  const sessionToken = await createSession(
+    userId,
+    ipAddress,
+    userAgent
+  );
+
+  // JWT curto (15 minutos)
+  const accessToken = signAccessToken({
+    userId,
+    companyId,
+    role,
+  });
+
+  // JWT longo (7 dias)
+  const refreshToken = signRefreshToken(
+    userId,
+    companyId
+  );
+
 
   const cookieStore = await cookies();
 
-  cookieStore.set(SESSION_COOKIE_NAME, sessionToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 7 * 24 * 60 * 60,
-  });
 
-  cookieStore.set("access_token", accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 15 * 60,
-  });
+  cookieStore.set(
+    SESSION_COOKIE_NAME,
+    sessionToken,
+    {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60,
+    }
+  );
 
-  cookieStore.set(REFRESH_COOKIE_NAME, refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/api/auth",
-    maxAge: 7 * 24 * 60 * 60,
-  });
+
+  cookieStore.set(
+    "access_token",
+    accessToken,
+    {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 15 * 60,
+    }
+  );
+
+
+  cookieStore.set(
+    REFRESH_COOKIE_NAME,
+    refreshToken,
+    {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60,
+    }
+  );
 }
+
 
 export async function clearAuthCookies() {
   const cookieStore = await cookies();
+
   cookieStore.delete(SESSION_COOKIE_NAME);
   cookieStore.delete("access_token");
   cookieStore.delete(REFRESH_COOKIE_NAME);
 }
 
+
 export async function getCurrentUser() {
   try {
     const cookieStore = await cookies();
-    const accessToken = cookieStore.get("access_token")?.value;
 
-    console.log("ACCESS TOKEN:", accessToken);
+    const accessToken =
+      cookieStore.get("access_token")?.value;
 
-    if (!accessToken) return null;
+
+    console.log(
+      "ACCESS TOKEN:",
+      accessToken
+    );
+
+
+    if (!accessToken) {
+
+      // tenta renovar com refresh token
+      const refreshed = await refreshAccessToken();
+
+      if (!refreshed) {
+        return null;
+      }
+
+      return getCurrentUser();
+    }
+
 
     const payload = verifyToken(accessToken);
 
-    console.log("JWT PAYLOAD:", payload);
+
+    console.log(
+      "JWT PAYLOAD:",
+      payload
+    );
+
+
     const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
+      where: {
+        id: payload.userId,
+      },
       select: {
         id: true,
         email: true,
@@ -135,6 +231,7 @@ export async function getCurrentUser() {
         companyId: true,
         isActive: true,
         twoFactorEnabled: true,
+
         company: {
           select: {
             name: true,
@@ -146,48 +243,128 @@ export async function getCurrentUser() {
       },
     });
 
-    if (!user || !user.isActive || user.company.status !== "ACTIVE") {
+
+    if (
+      !user ||
+      !user.isActive ||
+      user.company.status !== "ACTIVE"
+    ) {
       return null;
     }
 
+
     return user;
-  } catch {
+
+
+  } catch (error) {
+
+    console.log(
+      "GET CURRENT USER ERROR:",
+      error
+    );
+
     return null;
   }
 }
 
+
+
 export async function refreshAccessToken(): Promise<string | null> {
+
   try {
+
     const cookieStore = await cookies();
-    const refreshToken = cookieStore.get(REFRESH_COOKIE_NAME)?.value;
-    if (!refreshToken) return null;
 
-    const payload = verifyRefreshToken(refreshToken);
-    if (payload.type !== "refresh") return null;
 
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      select: { id: true, companyId: true, role: true, isActive: true },
-    });
+    const refreshToken =
+      cookieStore.get(REFRESH_COOKIE_NAME)?.value;
 
-    if (!user || !user.isActive) return null;
 
-    const newAccessToken = signAccessToken({
-      userId: user.id,
-      companyId: user.companyId,
-      role: user.role,
-    });
+    if (!refreshToken) {
+      return null;
+    }
 
-    cookieStore.set("access_token", newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 15 * 60,
-    });
+
+    const payload =
+      verifyRefreshToken(refreshToken);
+
+
+    if (
+      payload.type !== "refresh"
+    ) {
+      return null;
+    }
+
+
+    const user =
+      await prisma.user.findUnique({
+
+        where: {
+          id: payload.userId,
+        },
+
+        select: {
+          id: true,
+          companyId: true,
+          role: true,
+          isActive: true,
+        },
+      });
+
+
+
+    if (
+      !user ||
+      !user.isActive
+    ) {
+      return null;
+    }
+
+
+
+    const newAccessToken =
+      signAccessToken({
+
+        userId: user.id,
+
+        companyId:
+          user.companyId,
+
+        role:
+          user.role,
+      });
+
+
+
+    cookieStore.set(
+      "access_token",
+      newAccessToken,
+      {
+        httpOnly: true,
+
+        secure:
+          process.env.NODE_ENV === "production",
+
+        sameSite: "lax",
+
+        path: "/",
+
+        maxAge: 15 * 60,
+      }
+    );
+
 
     return newAccessToken;
-  } catch {
+
+
+
+  } catch(error) {
+
+    console.log(
+      "REFRESH TOKEN ERROR:",
+      error
+    );
+
     return null;
   }
 }

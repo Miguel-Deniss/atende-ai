@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { safeVerifyToken } from "@/lib/auth/jwt";
 
 const PUBLIC_PATHS = [
   "/",
@@ -28,7 +29,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/_next/") || pathname.startsWith("/static/") || pathname === "/favicon.ico") {
+  if (
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/static/") ||
+    pathname === "/favicon.ico"
+  ) {
     return NextResponse.next();
   }
 
@@ -39,8 +44,7 @@ export function middleware(request: NextRequest) {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-XSS-Protection": "1; mode=block",
-    "Permissions-Policy":
-      "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
     "Cross-Origin-Resource-Policy": "same-origin",
     "Cross-Origin-Embedder-Policy": "require-corp",
     "Cross-Origin-Opener-Policy": "same-origin",
@@ -61,19 +65,28 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  if (pathname.startsWith("/dashboard/") || pathname === "/dashboard") {
-    const sessionToken = request.cookies.get("session_token")?.value;
+  if (pathname.startsWith("/dashboard")) {
     const accessToken = request.cookies.get("access_token")?.value;
 
-    if (!sessionToken && !accessToken) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
+    console.log("TOKEN DASHBOARD:", !!accessToken);
+
+    if (!accessToken) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    const payload = safeVerifyToken(accessToken);
+
+    console.log("TOKEN:", accessToken);
+    console.log("PAYLOAD:", payload);
+
+    if (!payload) {
+      return NextResponse.redirect(new URL("/login", request.url));
     }
   }
 
   if (pathname.startsWith("/admin") && !pathname.startsWith("/api/admin")) {
     const accessToken = request.cookies.get("access_token")?.value;
+
     if (!accessToken) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
@@ -85,11 +98,8 @@ export function middleware(request: NextRequest) {
     const sessionToken = request.cookies.get("session_token")?.value;
     const accessToken = request.cookies.get("access_token")?.value;
 
-    if (!sessionToken && !accessToken) {
-      return NextResponse.json(
-        { success: false, error: "Não autorizado" },
-        { status: 401 }
-      );
+    if (!sessionToken || !accessToken) {
+      return NextResponse.json({ success: false, error: "Não autorizado" }, { status: 401 });
     }
   }
 
@@ -97,7 +107,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

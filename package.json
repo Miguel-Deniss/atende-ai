@@ -54,6 +54,7 @@
     "cors": "^2.8.6",
     "framer-motion": "^12.6.3",
     "helmet": "^8.3.0",
+    "jose": "^6.2.4",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.483.0",
     "multer": "^2.2.0",
