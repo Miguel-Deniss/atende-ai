@@ -56,24 +56,54 @@ export default function SettingsPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("atendeai_settings");
-      if (stored) setData(JSON.parse(stored));
-    } catch { /* ignore */ }
-    setLoaded(true);
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+  
+        if (!res.ok) {
+          throw new Error("Erro ao carregar");
+        }
+  
+        const json = await res.json();
+  
+        setData(json.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoaded(true);
+      }
+    }
+  
+    loadSettings();
   }, []);
 
   const update = <K extends keyof CompanyData>(key: K, value: CompanyData[K]) => {
     setData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const save = () => {
+  const save = async () => {
     setSaving(true);
-    setTimeout(() => {
-      localStorage.setItem("atendeai_settings", JSON.stringify(data));
-      setSaving(false);
+  
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+  
+      if (!res.ok) {
+        throw new Error("Erro ao salvar");
+      }
+  
       toast("Configurações salvas com sucesso!");
-    }, 600);
+    } catch (err) {
+      console.error(err);
+      toast("Erro ao salvar configurações.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!loaded) return null;

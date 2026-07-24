@@ -27,13 +27,19 @@ export async function GET() {
 
     return successResponse({
       companyName: company.name,
-      phone: company.phone,
-      address: company.address,
-      hours: company.hours,
-      welcomeMessage: company.welcomeMessage || company.aiConfig?.welcomeMessage,
-      absenceMessage: company.absenceMessage || company.aiConfig?.absenceMessage,
-      services: company.aiConfig?.services || [],
-      faq: company.aiConfig?.faq || [],
+      phone: company.phone ?? "",
+      address: company.address ?? "",
+      hours: company.hours ?? "",
+      welcomeMessage:
+        company.welcomeMessage ??
+        company.aiConfig?.welcomeMessage ??
+        "",
+      absenceMessage:
+        company.absenceMessage ??
+        company.aiConfig?.absenceMessage ??
+        "",
+      services: company.aiConfig?.services ?? [],
+      faq: company.aiConfig?.faq ?? [],
       autoTransfer: company.settings?.autoTransfer ?? true,
       autoReminders: company.settings?.autoReminders ?? true,
       requireConfirmation: company.settings?.requireConfirmation ?? true,
@@ -49,7 +55,10 @@ export async function PUT(request: NextRequest) {
     if (!user) return unauthorizedResponse();
 
     const body = await request.json();
+    console.log("BODY SETTINGS:", body);
+
     const parsed = companySettingsSchema.safeParse(body);
+    console.log("PARSED:", parsed);
 
     if (!parsed.success) {
       return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);

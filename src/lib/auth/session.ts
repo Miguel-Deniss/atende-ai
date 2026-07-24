@@ -190,6 +190,11 @@ export async function getCurrentUser() {
     const accessToken =
       cookieStore.get("access_token")?.value;
 
+      console.log(
+        "ACCESS COOKIE:",
+        cookieStore.get("access_token")
+      );
+
     if (!accessToken) {
 
       // tenta renovar com refresh token

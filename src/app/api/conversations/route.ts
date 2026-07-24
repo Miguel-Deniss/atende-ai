@@ -1,33 +1,53 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
-import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/auth/api-response";
+import {
+  successResponse,
+  errorResponse,
+  unauthorizedResponse,
+} from "@/lib/auth/api-response";
 import { paginationSchema } from "@/lib/validators/auth";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
+
     if (!user) return unauthorizedResponse();
 
     const { searchParams } = new URL(request.url);
+
     const parsed = paginationSchema.safeParse({
-      page: searchParams.get("page"),
-      limit: searchParams.get("limit"),
-      search: searchParams.get("search"),
-      status: searchParams.get("status"),
+      page: searchParams.get("page") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+      search: searchParams.get("search") ?? undefined,
+      status: searchParams.get("status") ?? undefined,
     });
 
-    const { page, limit, search, status } = parsed.data!;
+    if (!parsed.success) {
+      return errorResponse("Dados inválidos", 400);
+    }
 
-    const where: Record<string, unknown> = {
+    const { page, limit, search, status } = parsed.data;
+
+    const where: any = {
       companyId: user.companyId,
       deletedAt: null,
     };
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { message: { contains: search, mode: "insensitive" } },
+        {
+          name: {
+            contains: search,
+            mode: "insensitive",
+          },
+        },
+        {
+          phone: {
+            contains: search,
+            mode: "insensitive",
+          },
+        },
       ];
     }
 
@@ -35,21 +55,56 @@ export async function GET(request: NextRequest) {
       where.status = status;
     }
 
+
     const [conversations, total] = await Promise.all([
       prisma.conversation.findMany({
-        where: where as any,
+        where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: [{ unread: "desc" }, { createdAt: "desc" }],
+
+        orderBy: [
+          {
+            unread: "desc",
+          },
+          {
+            updatedAt: "desc",
+          },
+        ],
+
+        include: {
+          messages: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+          },
+        },
       }),
-      prisma.conversation.count({ where: where as any }),
+
+      prisma.conversation.count({
+        where,
+      }),
     ]);
+
 
     return successResponse({
       conversations,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
-  } catch {
-    return errorResponse("Erro interno do servidor", 500);
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    return errorResponse(
+      "Erro interno do servidor",
+      500
+    );
   }
 }

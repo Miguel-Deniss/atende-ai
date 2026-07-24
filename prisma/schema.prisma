@@ -34,69 +34,69 @@ enum PlanType {
 }
 
 model Company {
-  id              String             @id @default(cuid())
-  name            String
-  slug            String             @unique
-  document        String?
-  phone           String?
-  address         String?
-  hours           String?
-  welcomeMessage  String?
-  absenceMessage  String?
-  status          CompanyStatus      @default(ACTIVE)
-  planType        PlanType           @default(STARTER)
-  subscriptionStatus SubscriptionStatus? @default(TRIALING)
-  stripeCustomerId String?           @unique
-  stripeSubscriptionId String?       @unique
-  trialEndsAt     DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  deletedAt       DateTime?
+  id                   String              @id @default(cuid())
+  name                 String
+  slug                 String              @unique
+  document             String?
+  phone                String?
+  address              String?
+  hours                String?
+  welcomeMessage       String?
+  absenceMessage       String?
+  status               CompanyStatus       @default(ACTIVE)
+  planType             PlanType            @default(STARTER)
+  subscriptionStatus   SubscriptionStatus? @default(TRIALING)
+  stripeCustomerId     String?             @unique
+  stripeSubscriptionId String?             @unique
+  trialEndsAt          DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  deletedAt            DateTime?
 
-  users           User[]
-  clients         Client[]
-  appointments    Appointment[]
-  conversations   Conversation[]
-  settings        CompanySettings?
-  auditLogs       AuditLog[]
-  aiConfig        AIConfig?
-  uploads         Upload[]
-  apiKeys         ApiKey[]
+  users         User[]
+  clients       Client[]
+  appointments  Appointment[]
+  conversations Conversation[]
+  settings      CompanySettings?
+  auditLogs     AuditLog[]
+  aiConfig      AIConfig?
+  uploads       Upload[]
+  apiKeys       ApiKey[]
 
   @@map("companies")
 }
 
 model User {
-  id                String     @id @default(cuid())
-  email             String     @unique
-  name              String
-  passwordHash      String?
-  role              UserRole   @default(EMPLOYEE)
-  phone             String?
-  avatarUrl         String?
-  emailVerified     Boolean    @default(false)
-  emailVerificationToken String? @unique
-  resetPasswordToken    String? @unique
-  resetPasswordExpires  DateTime?
-  twoFactorSecret   String?
-  twoFactorEnabled  Boolean    @default(false)
-  twoFactorVerified Boolean    @default(false)
-  googleId          String?    @unique
-  microsoftId       String?    @unique
-  lastLoginAt       DateTime?
-  lastLoginIp       String?
-  isActive          Boolean    @default(true)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  deletedAt         DateTime?
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  name                   String
+  passwordHash           String?
+  role                   UserRole  @default(EMPLOYEE)
+  phone                  String?
+  avatarUrl              String?
+  emailVerified          Boolean   @default(false)
+  emailVerificationToken String?   @unique
+  resetPasswordToken     String?   @unique
+  resetPasswordExpires   DateTime?
+  twoFactorSecret        String?
+  twoFactorEnabled       Boolean   @default(false)
+  twoFactorVerified      Boolean   @default(false)
+  googleId               String?   @unique
+  microsoftId            String?   @unique
+  lastLoginAt            DateTime?
+  lastLoginIp            String?
+  isActive               Boolean   @default(true)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
 
-  companyId         String
-  company           Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  sessions          Session[]
-  auditLogs         AuditLog[]
-  loginAttempts     LoginAttempt[]
-  uploads           Upload[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  loginAttempts LoginAttempt[]
+  uploads       Upload[]
 
   @@index([companyId])
   @@index([email])
@@ -137,80 +137,82 @@ model LoginAttempt {
 }
 
 model CompanySettings {
-  id                 String   @id @default(cuid())
-  autoTransfer       Boolean  @default(true)
-  autoReminders      Boolean  @default(true)
-  requireConfirmation Boolean @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  autoTransfer        Boolean  @default(true)
+  autoReminders       Boolean  @default(true)
+  requireConfirmation Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  companyId          String   @unique
-  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("company_settings")
 }
 
 model AIConfig {
-  id              String   @id @default(cuid())
-  model           String   @default("gpt-4")
-  temperature     Float    @default(0.7)
-  maxTokens       Int      @default(1024)
-  systemPrompt    String?
-  welcomeMessage  String?
-  absenceMessage  String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  model          String   @default("gpt-4")
+  temperature    Float    @default(0.7)
+  maxTokens      Int      @default(1024)
+  systemPrompt   String?
+  welcomeMessage String?
+  absenceMessage String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  companyId       String   @unique
-  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  services        Service[]
-  faq             FAQ[]
+  services Service[]
+  faq      FAQ[]
 
   @@map("ai_configs")
 }
 
 model Service {
-  id        String   @id @default(cuid())
-  name      String
-  price     String
+  id         String   @id @default(cuid())
+  name       String
+  price      String
   aiConfigId String
-  aiConfig  AIConfig @relation(fields: [aiConfigId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  aiConfig   AIConfig @relation(fields: [aiConfigId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
 
   @@index([aiConfigId])
   @@map("services")
 }
 
 model FAQ {
-  id        String   @id @default(cuid())
-  question  String
-  answer    String
+  id         String   @id @default(cuid())
+  question   String
+  answer     String
   aiConfigId String
-  aiConfig  AIConfig @relation(fields: [aiConfigId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  aiConfig   AIConfig @relation(fields: [aiConfigId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
 
   @@index([aiConfigId])
   @@map("faqs")
 }
 
 model Client {
-  id           String   @id @default(cuid())
-  name         String
-  phone        String
-  email        String?
-  lastService  String?
-  date         DateTime @default(now())
-  status       String   @default("active")
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  id          String    @id @default(cuid())
+  name        String
+  phone       String
+  email       String?
+  lastService String?
+  date        DateTime  @default(now())
+  status      String    @default("active")
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   appointments Appointment[]
+
+  conversations Conversation[]
 
   @@index([companyId])
   @@index([phone])
@@ -219,80 +221,111 @@ model Client {
 }
 
 model Appointment {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   time      String
   date      DateTime
   name      String
   service   String
-  status    String   @default("pending")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    String    @default("pending")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  clientId   String?
-  client     Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  companyId  String
-  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  clientId  String?
+  client    Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, date])
   @@map("appointments")
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
-  name      String
-  message   String
-  time      String?
-  status    String   @default("pending")
-  unread    Boolean  @default(true)
+  id String @id @default(cuid())
+
+  phone String
+  name String?
+
+  status String @default("OPEN")
+  unread Boolean @default(true)
+
+  lastMessage String?
+  lastMessageAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
 
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+
+  clientId String?
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+
+  messages Message[]
 
   @@index([companyId])
   @@index([status])
+  @@index([phone])
   @@map("conversations")
 }
 
-model Upload {
-  id             String   @id @default(cuid())
-  originalName   String
-  storedName     String
-  mimeType       String
-  size           Int
-  path           String
-  url            String
-  createdAt      DateTime @default(now())
+model Message {
+  id String @id @default(cuid())
 
-  companyId      String
-  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  uploadedById   String?
-  uploadedBy     User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  role    String
+  content String
+
+  type String @default("text")
+
+  createdAt DateTime @default(now())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model Upload {
+  id           String   @id @default(cuid())
+  originalName String
+  storedName   String
+  mimeType     String
+  size         Int
+  path         String
+  url          String
+  createdAt    DateTime @default(now())
+
+  companyId    String
+  company      Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy   User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@index([companyId])
   @@map("uploads")
 }
 
 model AuditLog {
-  id           String   @id @default(cuid())
-  action       String
-  entity       String
-  entityId     String?
-  description  String?
-  oldValues    Json?
-  newValues    Json?
-  ipAddress    String?
-  userAgent    String?
-  screen       String?
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  action      String
+  entity      String
+  entityId    String?
+  description String?
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  screen      String?
+  createdAt   DateTime @default(now())
 
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  userId       String?
-  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([companyId, createdAt])
   @@index([action])
@@ -301,16 +334,16 @@ model AuditLog {
 }
 
 model ApiKey {
-  id        String   @id @default(cuid())
-  name      String
-  key       String   @unique
+  id         String    @id @default(cuid())
+  name       String
+  key        String    @unique
   lastUsedAt DateTime?
-  expiresAt DateTime?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  expiresAt  DateTime?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
 
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([key])
   @@index([companyId])
@@ -318,15 +351,15 @@ model ApiKey {
 }
 
 model WebhookEvent {
-  id        String   @id @default(cuid())
-  provider  String
-  event     String
-  payload   Json
-  signature String?
-  status    String   @default("received")
+  id          String    @id @default(cuid())
+  provider    String
+  event       String
+  payload     Json
+  signature   String?
+  status      String    @default("received")
   processedAt DateTime?
-  error     String?
-  createdAt DateTime @default(now())
+  error       String?
+  createdAt   DateTime  @default(now())
 
   @@index([provider, status])
   @@map("webhook_events")
