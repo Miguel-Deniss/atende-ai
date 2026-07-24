@@ -1,15 +1,12 @@
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
-import {
-  verifyToken,
-  signAccessToken,
-  signRefreshToken,
-  verifyRefreshToken,
-} from "./jwt";
+
+import { verifyToken, signAccessToken, signRefreshToken, verifyRefreshToken } from "./jwt";
 
 const SESSION_COOKIE_NAME = "session_token";
 const REFRESH_COOKIE_NAME = "refresh_token";
 
+// Criar sessão no banco
 export async function createSession(
   userId: string,
   ipAddress?: string,
@@ -28,44 +25,13 @@ export async function createSession(
   return session.sessionToken;
 }
 
-export async function revokeSession(sessionToken: string): Promise<void> {
-  await prisma.session.updateMany({
-    where: {
-      sessionToken,
-      isRevoked: false,
-    },
-    data: {
-      isRevoked: true,
-    },
-  });
-}
-
-export async function revokeAllUserSessions(userId: string): Promise<void> {
-  await prisma.session.updateMany({
-    where: {
-      userId,
-      isRevoked: false,
-    },
-    data: {
-      isRevoked: true,
-    },
-  });
-}
-
-export async function validateSession(sessionToken: string): Promise<{
-  valid: boolean;
-  user?: {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    companyId: string;
-  };
-}> {
+// Validar sessão
+export async function validateSession(sessionToken: string) {
   const session = await prisma.session.findUnique({
     where: {
       sessionToken,
     },
+
     include: {
       user: {
         select: {
@@ -102,7 +68,7 @@ export async function validateSession(sessionToken: string): Promise<{
   };
 }
 
-
+// Criar cookies de autenticação
 export async function setAuthCookies(
   userId: string,
   companyId: string,
@@ -110,70 +76,44 @@ export async function setAuthCookies(
   ipAddress?: string,
   userAgent?: string
 ) {
-  // Cria sessão no banco
-  const sessionToken = await createSession(
-    userId,
-    ipAddress,
-    userAgent
-  );
+  const sessionToken = await createSession(userId, ipAddress, userAgent);
 
-  // JWT curto (15 minutos)
   const accessToken = signAccessToken({
     userId,
     companyId,
     role,
   });
 
-  // JWT longo (7 dias)
-  const refreshToken = signRefreshToken(
-    userId,
-    companyId
-  );
-
+  const refreshToken = signRefreshToken(userId, companyId);
 
   const cookieStore = await cookies();
 
+  cookieStore.set(SESSION_COOKIE_NAME, sessionToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60,
+  });
 
-  cookieStore.set(
-    SESSION_COOKIE_NAME,
-    sessionToken,
-    {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60,
-    }
-  );
+  cookieStore.set("access_token", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 15 * 60,
+  });
 
-
-  cookieStore.set(
-    "access_token",
-    accessToken,
-    {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 15 * 60,
-    }
-  );
-
-
-  cookieStore.set(
-    REFRESH_COOKIE_NAME,
-    refreshToken,
-    {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60,
-    }
-  );
+  cookieStore.set(REFRESH_COOKIE_NAME, refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60,
+  });
 }
 
-
+// Limpar cookies
 export async function clearAuthCookies() {
   const cookieStore = await cookies();
 
@@ -182,45 +122,42 @@ export async function clearAuthCookies() {
   cookieStore.delete(REFRESH_COOKIE_NAME);
 }
 
-
+// Pegar usuário logado
 export async function getCurrentUser() {
   try {
+    console.log("===== GET CURRENT USER =====");
+
     const cookieStore = await cookies();
 
-    const accessToken =
-      cookieStore.get("access_token")?.value;
+    console.log("COOKIES:", cookieStore.getAll());
 
-      console.log(
-        "ACCESS COOKIE:",
-        cookieStore.get("access_token")
-      );
+    const accessToken = cookieStore.get("access_token")?.value;
+
+    console.log("TEM ACCESS TOKEN:", !!accessToken);
 
     if (!accessToken) {
+      console.log("Tentando refresh token...");
 
-      // tenta renovar com refresh token
       const refreshed = await refreshAccessToken();
 
       if (!refreshed) {
+        console.log("Refresh falhou");
+
         return null;
       }
 
       return getCurrentUser();
     }
 
-
     const payload = verifyToken(accessToken);
 
-
-    console.log(
-      "JWT PAYLOAD:",
-      payload
-    );
-
+    console.log("JWT PAYLOAD:", payload);
 
     const user = await prisma.user.findUnique({
       where: {
         id: payload.userId,
       },
+
       select: {
         id: true,
         email: true,
@@ -228,7 +165,6 @@ export async function getCurrentUser() {
         role: true,
         companyId: true,
         isActive: true,
-        twoFactorEnabled: true,
 
         company: {
           select: {
@@ -241,127 +177,88 @@ export async function getCurrentUser() {
       },
     });
 
+    console.log("USER:", user);
 
-    if (
-      !user ||
-      !user.isActive ||
-      user.company.status !== "ACTIVE"
-    ) {
+    if (!user) {
       return null;
     }
 
+    if (!user.isActive) {
+      return null;
+    }
+
+    if (!user.company) {
+      return null;
+    }
+
+    if (user.company.status !== "ACTIVE") {
+      return null;
+    }
+
+    console.log("USUARIO AUTENTICADO");
 
     return user;
-
-
   } catch (error) {
-
-    console.log(
-      "GET CURRENT USER ERROR:",
-      error
-    );
+    console.log("GET CURRENT USER ERROR:", error);
 
     return null;
   }
 }
 
-
-
+// Renovar access token
 export async function refreshAccessToken(): Promise<string | null> {
-
   try {
-
     const cookieStore = await cookies();
 
-
-    const refreshToken =
-      cookieStore.get(REFRESH_COOKIE_NAME)?.value;
-
+    const refreshToken = cookieStore.get(REFRESH_COOKIE_NAME)?.value;
 
     if (!refreshToken) {
       return null;
     }
 
+    const payload = verifyRefreshToken(refreshToken);
 
-    const payload =
-      verifyRefreshToken(refreshToken);
-
-
-    if (
-      payload.type !== "refresh"
-    ) {
+    if (payload.type !== "refresh") {
       return null;
     }
 
+    const user = await prisma.user.findUnique({
+      where: {
+        id: payload.userId,
+      },
 
-    const user =
-      await prisma.user.findUnique({
+      select: {
+        id: true,
+        companyId: true,
+        role: true,
+        isActive: true,
+      },
+    });
 
-        where: {
-          id: payload.userId,
-        },
-
-        select: {
-          id: true,
-          companyId: true,
-          role: true,
-          isActive: true,
-        },
-      });
-
-
-
-    if (
-      !user ||
-      !user.isActive
-    ) {
+    if (!user || !user.isActive) {
       return null;
     }
 
+    const newAccessToken = signAccessToken({
+      userId: user.id,
+      companyId: user.companyId,
+      role: user.role,
+    });
 
+    cookieStore.set("access_token", newAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
 
-    const newAccessToken =
-      signAccessToken({
+      sameSite: "lax",
 
-        userId: user.id,
+      path: "/",
 
-        companyId:
-          user.companyId,
-
-        role:
-          user.role,
-      });
-
-
-
-    cookieStore.set(
-      "access_token",
-      newAccessToken,
-      {
-        httpOnly: true,
-
-        secure:
-          process.env.NODE_ENV === "production",
-
-        sameSite: "lax",
-
-        path: "/",
-
-        maxAge: 15 * 60,
-      }
-    );
-
+      maxAge: 15 * 60,
+    });
 
     return newAccessToken;
-
-
-
-  } catch(error) {
-
-    console.log(
-      "REFRESH TOKEN ERROR:",
-      error
-    );
+  } catch (error) {
+    console.log("REFRESH TOKEN ERROR:", error);
 
     return null;
   }

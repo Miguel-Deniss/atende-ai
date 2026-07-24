@@ -43,6 +43,7 @@ model Company {
   hours                String?
   welcomeMessage       String?
   absenceMessage       String?
+  aiContext            String?             @db.Text
   status               CompanyStatus       @default(ACTIVE)
   planType             PlanType            @default(STARTER)
   subscriptionStatus   SubscriptionStatus? @default(TRIALING)
@@ -155,13 +156,18 @@ model AIConfig {
   model          String   @default("gpt-4")
   temperature    Float    @default(0.7)
   maxTokens      Int      @default(1024)
+
   systemPrompt   String?
   welcomeMessage String?
   absenceMessage String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
 
-  companyId String  @unique
+  personality    String?
+  instructions   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyId String @unique
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   services Service[]
@@ -244,26 +250,24 @@ model Conversation {
   id String @id @default(cuid())
 
   phone String
-  name String?
+  name  String?
 
-  status String @default("OPEN")
+  status String  @default("OPEN")
   unread Boolean @default(true)
 
-  lastMessage String?
+  lastMessage   String?
   lastMessageAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   companyId String
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   clientId String?
 
   client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
-
 
   messages Message[]
 

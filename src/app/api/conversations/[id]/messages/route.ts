@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { generateAIResponse } from "@/lib/ai/assistant";
+
 import {
   successResponse,
   errorResponse,
@@ -27,6 +28,18 @@ export async function GET(
         id,
         companyId: user.companyId,
       },
+      include: {
+        company: {
+          include: {
+            aiConfig: {
+              include: {
+                services: true,
+                faq: true,
+              },
+            },
+          },
+        },
+      },
     });
 
 
@@ -49,7 +62,6 @@ export async function GET(
 
 
   } catch (error) {
-
     console.error(error);
 
     return errorResponse(
@@ -66,9 +78,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+
     const user = await getCurrentUser();
 
     if (!user) return unauthorizedResponse();
+
 
     const { id } = await params;
 
@@ -78,12 +92,34 @@ export async function POST(
         id,
         companyId: user.companyId,
       },
+
+      include: {
+        company: {
+          include: {
+            aiConfig: {
+              include: {
+                services: true,
+                faq: true,
+              },
+            },
+          },
+        },
+      },
     });
 
 
     if (!conversation) {
       return notFoundResponse("Conversa não encontrada");
     }
+
+
+    if (!conversation.company.aiConfig) {
+      return errorResponse(
+        "Configuração da IA não encontrada",
+        400
+      );
+    }
+
 
 
     const body = await request.json();
@@ -97,7 +133,8 @@ export async function POST(
     }
 
 
-    const message = await prisma.message.create({
+
+    await prisma.message.create({
       data: {
         role: "user",
         content: body.content,
@@ -106,50 +143,113 @@ export async function POST(
     });
 
 
+
     const history = await prisma.message.findMany({
       where: {
         conversationId: id,
       },
-    
+
       orderBy: {
         createdAt: "asc",
       },
-    
+
       take: 20,
     });
-    
-    
+
+    console.log(
+      "AI CONFIG:",
+      conversation.company.aiConfig
+    );
+
     const aiResponse = await generateAIResponse(
+
       history.map((message) => ({
         role:
           message.role === "assistant"
             ? "assistant"
             : "user",
+
         content: message.content,
-      }))
+      })),
+
+      {
+
+        name: conversation.company.name,
+
+        phone: conversation.company.phone,
+
+        address: conversation.company.address,
+
+        hours: conversation.company.hours,
+
+        welcomeMessage:
+          conversation.company.welcomeMessage,
+
+
+        aiConfig: {
+
+          personality:
+            conversation.company.aiConfig.personality,
+
+          instructions:
+            conversation.company.aiConfig.instructions,
+
+
+          services:
+            conversation.company.aiConfig.services.map(
+              (service) => ({
+                name: service.name,
+                price: service.price,
+              })
+            ),
+
+
+          faq:
+            conversation.company.aiConfig.faq.map(
+              (item) => ({
+                question: item.question,
+                answer: item.answer,
+              })
+            ),
+
+        },
+
+      }
     );
-    
-    
-    await prisma.message.create({
+
+
+
+    const assistantMessage = await prisma.message.create({
+
       data: {
+
         role: "assistant",
+
         content: aiResponse,
+
         type: "text",
+
         conversationId: id,
+
       },
+
     });
 
 
-    return successResponse(message);
+
+    return successResponse(assistantMessage);
+
 
 
   } catch (error) {
 
     console.error(error);
 
+
     return errorResponse(
       "Erro interno do servidor",
       500
     );
+
   }
 }
