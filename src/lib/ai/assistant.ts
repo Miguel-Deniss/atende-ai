@@ -55,7 +55,7 @@ function buildSystemPrompt(company: CompanyContext): string {
     "- Responda em portugues brasileiro, educado e natural.",
     "- Se o cliente perguntar servicos, liste SOMENTE os servicos abaixo.",
     "- Se o cliente perguntar preco de um servico, informe o preco exato desse servico.",
-    "- Se o cliente quiser agendar, pergunte qual servico, qual dia e qual horario.",
+    "- Se o cliente quiser agendar, colete as informacoes uma de cada vez. Primeira: qual servico. Segunda: qual dia. Terceira: qual horario. Use o historico da conversa para saber quais informacoes ja foram coletadas. NUNCA pergunte novamente o que o cliente ja informou.",
     "- NUNCA confirme o horario. Apenas registre a solicitacao.",
     "- Se o cliente perguntar algo que voce nao tem informacao, diga:",
     '  "Nao tenho essa informacao no momento. Um atendente podera confirmar."',
@@ -147,18 +147,12 @@ export async function generateAIResponse(
   messages: AIMessage[],
   company: CompanyContext
 ) {
-  const recentMessages = messages
-    .filter(m => m.content.trim() !== "")
-    .slice(-6);
-
   const systemPrompt = buildSystemPrompt(company);
 
-  const ollamaMessages = recentMessages.map((m, i) => {
-    if (i === 0) {
-      return { role: m.role, content: systemPrompt + "\n\n---\n\n" + m.content };
-    }
-    return { role: m.role, content: m.content };
-  });
+  const ollamaMessages = [
+    { role: "system" as const, content: systemPrompt },
+    ...messages.filter(m => m.content.trim() !== "").map(m => ({ role: m.role, content: m.content })),
+  ];
 
   console.log("===== MENSAGENS ENVIADAS AO OLLAMA =====");
   console.log(JSON.stringify(ollamaMessages, null, 2));

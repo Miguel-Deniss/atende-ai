@@ -5,11 +5,15 @@ export async function chat(
   }[]
 ) {
   const payload: Record<string, unknown> = {
-    model: "llama3.2",
+    model: "qwen3:8b",
     messages,
     stream: false,
+    think: false,
     options: {
-      temperature: 0.7,
+      temperature: 0.2,
+      top_p: 0.9,
+      repeat_penalty: 1.1,
+      num_ctx: 8192,
       num_predict: 512,
     },
   };
