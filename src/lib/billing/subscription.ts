@@ -70,22 +70,36 @@ export interface CreateSubscriptionInput {
   status?: "ACTIVE" | "TRIALING" | "INCOMPLETE";
   couponId?: string | null;
   trialDays?: number;
+  trialEndsAt?: Date | null;
   amount: number;
   logAction?: LogAction;
   userId?: string;
   description?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  nextBillingDate?: Date;
+  metadata?: Record<string, unknown>;
 }
 
 export async function createOrUpdateSubscription(
   input: CreateSubscriptionInput
 ): Promise<{ subscription: { id: string; status: string; nextBillingDate: Date | null } }> {
   const now = new Date();
-  const nextBillingDate = new Date(now);
-  nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+  const nextBillingDate =
+    input.nextBillingDate ?? (() => {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() + 1);
+      return d;
+    })();
 
   const trialDays = input.trialDays ?? 0;
+  const isTrial = input.status === "TRIALING";
   const trialEndsAt =
-    trialDays > 0 ? new Date(now.getTime() + trialDays * 86400000) : null;
+    input.trialEndsAt !== undefined
+      ? input.trialEndsAt
+      : isTrial && trialDays > 0
+        ? new Date(now.getTime() + trialDays * 86400000)
+        : null;
 
   const subscription = await prisma.subscription.upsert({
     where: { companyId: input.companyId },
@@ -115,6 +129,10 @@ export async function createOrUpdateSubscription(
       planType: input.planCode as never,
       subscriptionStatus: input.status ?? "ACTIVE",
       trialEndsAt,
+      ...(input.stripeCustomerId ? { stripeCustomerId: input.stripeCustomerId } : {}),
+      ...(input.stripeSubscriptionId
+        ? { stripeSubscriptionId: input.stripeSubscriptionId }
+        : {}),
     },
   });
 
@@ -126,6 +144,7 @@ export async function createOrUpdateSubscription(
     status: input.status ?? "ACTIVE",
     description: input.description ?? `Assinatura do plano ${input.planCode}`,
     userId: input.userId,
+    metadata: input.metadata,
   });
 
   return { subscription };
@@ -172,5 +191,48 @@ export async function getBillingHistory(companyId: string, limit = 20) {
     where: { companyId },
     orderBy: { createdAt: "desc" },
     take: limit,
+  });
+}
+
+export async function updateSubscriptionStatus(input: {
+  companyId: string;
+  status: "ACTIVE" | "PAST_DUE" | "CANCELED" | "INCOMPLETE" | "TRIALING";
+  nextBillingDate?: Date | null;
+  expiresAt?: Date | null;
+  canceledAt?: Date | null;
+  stripeSubscriptionId?: string;
+  logAction?: LogAction;
+  userId?: string;
+  description?: string;
+}): Promise<void> {
+  await prisma.subscription.updateMany({
+    where: { companyId: input.companyId },
+    data: {
+      status: input.status,
+      ...(input.nextBillingDate !== undefined
+        ? { nextBillingDate: input.nextBillingDate }
+        : {}),
+      ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {}),
+      ...(input.canceledAt !== undefined ? { canceledAt: input.canceledAt } : {}),
+    },
+  });
+
+  await prisma.company.update({
+    where: { id: input.companyId },
+    data: {
+      subscriptionStatus: input.status,
+      ...(input.stripeSubscriptionId
+        ? { stripeSubscriptionId: input.stripeSubscriptionId }
+        : {}),
+    },
+  });
+
+  await recordBilling({
+    companyId: input.companyId,
+    action: input.logAction ?? "SUBSCRIPTION_RENEWED",
+    status: input.status.toLowerCase(),
+    description:
+      input.description ?? `Status da assinatura alterado para ${input.status}`,
+    userId: input.userId,
   });
 }

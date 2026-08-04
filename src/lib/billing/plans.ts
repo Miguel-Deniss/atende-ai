@@ -177,3 +177,15 @@ export async function getPlanByCode(code: string) {
     },
   });
 }
+
+export function getPlanPrice(planCode: string): number {
+  const def = PLAN_DEFINITIONS.find((p) => p.code === planCode);
+  return def?.price ?? 0;
+}
+
+export function getPlanPriceMap(): Record<string, number> {
+  return PLAN_DEFINITIONS.reduce((acc, def) => {
+    acc[def.code] = def.price;
+    return acc;
+  }, {} as Record<string, number>);
+}

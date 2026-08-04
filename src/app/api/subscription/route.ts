@@ -2,68 +2,49 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/auth/api-response";
-import { createLog } from "@/lib/logger";
+import { getCompanyBilling } from "@/lib/billing/subscription";
+import { getPlanByCode } from "@/lib/billing/plans";
 
 export async function GET() {
   try {
     const user = await getCurrentUser();
     if (!user) return unauthorizedResponse();
 
+    const billing = await getCompanyBilling(user.companyId);
+
+    const plan = await getPlanByCode(billing.planType);
     const company = await prisma.company.findUnique({
       where: { id: user.companyId },
       select: {
-        planType: true,
-        subscriptionStatus: true,
         stripeCustomerId: true,
         stripeSubscriptionId: true,
-        trialEndsAt: true,
         createdAt: true,
       },
     });
 
-    return successResponse(company);
+    return successResponse({
+      ...billing,
+      price: plan?.price ?? 0,
+      planName: plan?.name ?? billing.planType,
+      features: plan?.features ?? [],
+      stripeCustomerId: company?.stripeCustomerId ?? null,
+      stripeSubscriptionId: company?.stripeSubscriptionId ?? null,
+      createdAt: company?.createdAt,
+    });
   } catch {
     return errorResponse("Erro interno do servidor", 500);
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const user = await getCurrentUser();
     if (!user) return unauthorizedResponse();
 
-    const body = await request.json();
-    const { planType } = body;
-
-    if (!["STARTER", "PRO", "BUSINESS"].includes(planType)) {
-      return errorResponse("Plano inválido", 400);
-    }
-
-    const previous = await prisma.company.findUnique({
-      where: { id: user.companyId },
-      select: { planType: true },
-    });
-
-    await prisma.company.update({
-      where: { id: user.companyId },
-      data: {
-        planType: planType as "STARTER" | "PRO" | "BUSINESS",
-        subscriptionStatus: "ACTIVE",
-      },
-    });
-
-    await createLog({
-      action: "PLAN_CHANGE",
-      entity: "subscription",
-      entityId: user.companyId,
-      description: `Plano alterado: ${previous?.planType} -> ${planType}`,
-      companyId: user.companyId,
-      userId: user.id,
-      oldValues: previous,
-      newValues: { planType },
-    });
-
-    return successResponse({ message: "Plano alterado com sucesso" });
+    return errorResponse(
+      "Alteração de plano deve ser feita pelo fluxo de checkout em /api/billing/checkout.",
+      409
+    );
   } catch {
     return errorResponse("Erro interno do servidor", 500);
   }

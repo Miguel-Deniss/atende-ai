@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { successResponse, errorResponse, unauthorizedResponse, forbiddenResponse } from "@/lib/auth/api-response";
+import { getPlanPriceMap } from "@/lib/billing/plans";
 
 export async function GET() {
   try {
@@ -45,11 +46,7 @@ export async function GET() {
       {}
     );
 
-    const planPrices: Record<string, number> = {
-      STARTER: 59,
-      PRO: 119,
-      BUSINESS: 249,
-    };
+    const planPrices = getPlanPriceMap();
 
     const estimatedMRR = Object.entries(planDistribution).reduce(
       (total, [plan, count]) => total + (planPrices[plan] || 0) * count,
@@ -67,7 +64,7 @@ export async function GET() {
       appointments: totalAppointments,
       newCompaniesThisMonth,
       planDistribution,
-      estimatedMRR,
+      estimatedMRR: Math.round(estimatedMRR / 100),
     });
   } catch {
     return errorResponse("Erro interno do servidor", 500);

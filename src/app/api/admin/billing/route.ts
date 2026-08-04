@@ -6,14 +6,7 @@ import {
   forbiddenResponse,
 } from "@/lib/auth/api-response";
 import { prisma } from "@/lib/db/prisma";
-
-const PLAN_PRICES: Record<string, number> = {
-  FREE: 0,
-  STARTER: 5900,
-  PRO: 11900,
-  BUSINESS: 24900,
-  ENTERPRISE: 59900,
-};
+import { getPlanPriceMap } from "@/lib/billing/plans";
 
 export async function GET() {
   try {
@@ -57,6 +50,7 @@ export async function GET() {
     });
 
     let mrr = 0;
+    const PLAN_PRICES = getPlanPriceMap();
     for (const sub of activeByPlan) {
       const code = planMap.get(sub.planId) ?? "FREE";
       mrr += PLAN_PRICES[code] ?? 0;
