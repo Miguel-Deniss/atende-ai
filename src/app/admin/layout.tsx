@@ -23,12 +23,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!loading && (!user || user.role !== "ADMIN")) {
-      router.push("/login");
+    if (!loading && (!user || user.role !== "SUPER_ADMIN")) {
+      router.push("/dashboard");
     }
   }, [user, loading, router]);
 
-  if (loading || !user || user.role !== "ADMIN") {
+  if (loading || !user || user.role !== "SUPER_ADMIN") {
     return (
       <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-400" />

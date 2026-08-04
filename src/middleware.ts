@@ -91,6 +91,11 @@ export async function middleware(request: NextRequest) {
     if (!accessToken) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
+
+    const payload = await verifyEdgeToken(accessToken);
+    if (!payload || payload.role !== "SUPER_ADMIN") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   if (pathname.startsWith("/api/")) {

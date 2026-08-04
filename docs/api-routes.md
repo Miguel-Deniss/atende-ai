@@ -630,16 +630,18 @@
 
 ## Admin (5 rotas)
 
+> **Nota**: Todas as rotas `admin/*` são globais da plataforma e exigem `role === "SUPER_ADMIN"` (não `ADMIN`). O `ADMIN` é restrito à própria empresa.
+
 ---
 
 #### `route.ts`
 - **Caminho**: `src/app/api/admin/stats/route.ts`
 - **Métodos HTTP**: `GET`
-- **Autenticação**: required + ADMIN role
+- **Autenticação**: required + SUPER_ADMIN role
 - **Funções**: `GET()`
 - **Fluxo**:
   1. `getCurrentUser()` — 401
-  2. `role !== "ADMIN"` — 403
+  2. `role !== "SUPER_ADMIN"` — 403
   3. 8 queries paralelas:
      - Total companies (deletedAt: null)
      - Active companies (status: ACTIVE)
@@ -661,11 +663,11 @@
 #### `route.ts`
 - **Caminho**: `src/app/api/admin/companies/route.ts`
 - **Métodos HTTP**: `GET`
-- **Autenticação**: required + ADMIN role
+- **Autenticação**: required + SUPER_ADMIN role
 - **Funções**: `GET(request)`
 - **Fluxo**:
   1. `getCurrentUser()` — 401
-  2. `role !== "ADMIN"` — 403
+  2. `role !== "SUPER_ADMIN"` — 403
   3. Parseia query params com `paginationSchema` (page, limit, search, status)
   4. Monta `where` com search (name, slug) e status
   5. `findMany` companies com `_count` de users, clients, appointments
@@ -680,11 +682,11 @@
 #### `route.ts`
 - **Caminho**: `src/app/api/admin/companies/[id]/route.ts`
 - **Métodos HTTP**: `GET`, `PATCH`, `DELETE`
-- **Autenticação**: required + ADMIN role
+- **Autenticação**: required + SUPER_ADMIN role
 - **Funções**: `GET(request, { params })`, `PATCH(request, { params })`, `DELETE(request, { params })`
 - **Fluxo (GET)**:
   1. `getCurrentUser()` — 401
-  2. `role !== "ADMIN"` — 403
+  2. `role !== "SUPER_ADMIN"` — 403
   3. `findUnique` company com includes: `users` (select parcial), `settings`, `aiConfig` (com services, faq), `_count` de tudo
 - **Fluxo (PATCH)**:
   1. `getCurrentUser()` — 401, role check 403
@@ -707,11 +709,11 @@
 #### `route.ts`
 - **Caminho**: `src/app/api/admin/audit/route.ts`
 - **Métodos HTTP**: `GET`
-- **Autenticação**: required + ADMIN role
+- **Autenticação**: required + SUPER_ADMIN role
 - **Funções**: `GET(request)`
 - **Fluxo**:
   1. `getCurrentUser()` — 401
-  2. `role !== "ADMIN"` — 403
+  2. `role !== "SUPER_ADMIN"` — 403
   3. Parseia query params com `paginationSchema` + `search`, `companyId`, `action` avulsos
   4. Monta `where` com filtros opcionais
   5. `findMany` auditLogs com includes: `user` (name, email, role), `company` (name)
@@ -725,11 +727,11 @@
 #### `route.ts`
 - **Caminho**: `src/app/api/admin/logs/route.ts`
 - **Métodos HTTP**: `GET`
-- **Autenticação**: required + ADMIN role
+- **Autenticação**: required + SUPER_ADMIN role
 - **Funções**: `GET(request)`
 - **Fluxo**:
   1. `getCurrentUser()` — 401
-  2. `role !== "ADMIN"` — 403
+  2. `role !== "SUPER_ADMIN"` — 403
   3. Parseia query params com `paginationSchema` + `action`, `companyId`
   4. `findMany` auditLogs com includes: `user` (name, email), `company` (name)
   5. Paginação

@@ -124,7 +124,7 @@ export function Sidebar() {
           })}
         </nav>
 
-        {user?.role === "ADMIN" && (
+        {user?.role === "SUPER_ADMIN" && (
           <div className="px-3 py-1">
             <Link href="/admin"
               onClick={() => setMobileOpen(false)}
