@@ -4,16 +4,20 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  Building2, BarChart3, FileText, Shield, LogOut, Menu, X,
-  Loader2, ChevronLeft,
+  Building2, BarChart3, FileText, Shield, Menu, X,
+  Loader2, ChevronLeft, Users, Wallet, TicketPercent, Settings,
 } from "lucide-react";
 import Link from "next/link";
 
 const adminLinks = [
   { href: "/admin", icon: BarChart3, label: "Dashboard" },
   { href: "/admin/companies", icon: Building2, label: "Empresas" },
+  { href: "/admin/users", icon: Users, label: "Usuários" },
+  { href: "/admin/billing", icon: Wallet, label: "Financeiro" },
+  { href: "/admin/coupons", icon: TicketPercent, label: "Cupons" },
   { href: "/admin/logs", icon: FileText, label: "Logs" },
   { href: "/admin/audit", icon: Shield, label: "Auditoria" },
+  { href: "/admin/settings", icon: Settings, label: "Configurações" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

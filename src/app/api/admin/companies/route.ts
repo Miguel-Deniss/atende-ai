@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     });
 
     const { page, limit, search, status } = parsed.data!;
+    const planType = searchParams.get("planType");
 
     const where: Record<string, unknown> = {};
 
@@ -31,6 +32,10 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       where.status = status;
+    }
+
+    if (planType) {
+      where.planType = planType;
     }
 
     const [companies, total] = await Promise.all([

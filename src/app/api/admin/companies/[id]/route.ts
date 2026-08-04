@@ -20,14 +20,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             email: true,
             role: true,
             isActive: true,
+            emailVerified: true,
+            twoFactorEnabled: true,
             lastLoginAt: true,
             createdAt: true,
           },
+          orderBy: { createdAt: "asc" },
         },
         settings: true,
         aiConfig: {
           include: { services: true, faq: true },
         },
+        subscription: {
+          include: { plan: true, coupon: true },
+        },
+        billingHistory: {
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        },
+        whatsAppConfig: true,
         _count: {
           select: {
             users: true,

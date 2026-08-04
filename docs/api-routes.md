@@ -814,7 +814,25 @@
 ---
 
 #### `route.ts`
-- **Caminho**: `src/app/api/webhooks/stripe/route.ts`
+- **Caminho**: `src/app/api/admin/users/route.ts`
+- **Métodos HTTP**: `GET`, `PATCH`, `DELETE`
+- **Autenticação**: required + SUPER_ADMIN
+- **Fluxo (GET)**: listagem paginada de usuários globais com busca (nome/email), filtros de status e papel, inclui empresa + contadores (sessions/conversas)
+- **Fluxo (PATCH)**: `{ id, role?, isActive? }` → altera papel (restrito a `ADMIN`/`ATTENDANT`/`EMPLOYEE`/`FINANCIAL`) ou ativa/desativa; revoga sessions ao desativar; log `USER_UPDATE`
+- **Fluxo (DELETE)**: `{ id }` → revoga sessions + soft-delete; log `USER_DELETE`
+- **Observações**: Proteção: não modifica/exclui `SUPER_ADMIN` nem a si mesmo.
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/admin/settings/route.ts`
+- **Métodos HTTP**: `GET`
+- **Autenticação**: required + SUPER_ADMIN
+- **Fluxo**: status do ambiente (nodeEnv, URL base, versão), planos com contagem de assinantes, configuração de integrações (Stripe/WhatsApp/Resend/OpenAI) sem expor segredos, resumo de webhooks recebidos, contagem de API keys
+
+---
+
+
 - **Métodos HTTP**: `POST`
 - **Autenticação**: public (validação via `stripe-signature`)
 - **Fluxo**:
