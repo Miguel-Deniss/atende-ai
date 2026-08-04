@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const user = await getCurrentUser();
     if (!user) return unauthorizedResponse();
-    if (user.role !== "ADMIN") return forbiddenResponse("Apenas administradores podem acessar esta área");
+    if (user.role !== "SUPER_ADMIN") return forbiddenResponse("Apenas super administradores podem acessar esta área");
 
     const now = new Date();
     const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1);

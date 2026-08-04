@@ -7,7 +7,7 @@ import { successResponse, errorResponse, rateLimitResponse } from "@/lib/auth/ap
 import { checkLoginRateLimit, getRateLimitHeaders, resetLoginAttempts } from "@/lib/rate-limit";
 import { createLog } from "@/lib/logger";
 import { verifyToken } from "@/lib/auth/jwt";
-import speakeasy from "speakeasy";
+import { verifyTotp, verifyRecoveryCode } from "@/lib/auth/two-factor";
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, totpCode } = parsed.data;
+    const { email, password, totpCode, recoveryCode } = parsed.data;
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
     const userAgent = request.headers.get("user-agent") || undefined;
 
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (user.twoFactorEnabled) {
-      if (!totpCode) {
+      if (!totpCode && !recoveryCode) {
         return successResponse({
           requiresTwoFactor: true,
           userId: user.id,
@@ -108,15 +108,36 @@ export async function POST(request: NextRequest) {
         return errorResponse("2FA não configurado corretamente", 500);
       }
 
-      const verified = speakeasy.totp.verify({
-        secret: user.twoFactorSecret,
-        encoding: "base32",
-        token: totpCode,
-        window: 1,
-      });
+      const totpValid =
+        totpCode != null && verifyTotp(user.twoFactorSecret, totpCode);
 
-      if (!verified) {
+      const recovery =
+        !totpValid && recoveryCode != null
+          ? verifyRecoveryCode(recoveryCode, user.twoFactorRecoveryCodes)
+          : null;
+
+      if (!totpValid && !(recovery?.valid)) {
         return errorResponse("Código 2FA inválido", 401);
+      }
+
+      if (recovery?.valid) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            twoFactorRecoveryCodes: recovery.remaining as never,
+          },
+        });
+
+        await createLog({
+          action: "TWOFA_RECOVERY_USED",
+          entity: "user",
+          entityId: user.id,
+          description: `Login realizado com código de recuperação 2FA (restam ${recovery.remaining.length})`,
+          companyId: user.companyId,
+          userId: user.id,
+          ipAddress: ip,
+          userAgent,
+        });
       }
     }
 

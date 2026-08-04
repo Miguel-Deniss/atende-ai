@@ -20,8 +20,14 @@ const apiConfig: RateLimitConfig = {
   maxRequests: 60,
 };
 
+const webhookConfig: RateLimitConfig = {
+  windowMs: 60 * 1000,
+  maxRequests: 300,
+};
+
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const apiAttempts = new Map<string, { count: number; resetAt: number }>();
+const webhookAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function checkLimit(
   store: Map<string, { count: number; resetAt: number }>,
@@ -61,6 +67,12 @@ export function checkDefaultRateLimit(
   key: string
 ): { allowed: boolean; remaining: number; resetAt: number } {
   return checkLimit(apiAttempts, key, defaultConfig);
+}
+
+export function checkWebhookRateLimit(
+  key: string
+): { allowed: boolean; remaining: number; resetAt: number } {
+  return checkLimit(webhookAttempts, key, webhookConfig);
 }
 
 export function resetLoginAttempts(key: string): void {

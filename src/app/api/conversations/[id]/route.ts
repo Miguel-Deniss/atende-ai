@@ -40,6 +40,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             status: true,
           },
         },
+
+        handledBy: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 

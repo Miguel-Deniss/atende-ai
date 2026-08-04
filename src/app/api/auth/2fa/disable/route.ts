@@ -2,8 +2,9 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
-import speakeasy from "speakeasy";
 import { createLog } from "@/lib/logger";
+import { verifyTotp } from "@/lib/auth/two-factor";
+import { Prisma } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,24 +27,21 @@ export async function POST(request: NextRequest) {
       return errorResponse("2FA não configurado", 400);
     }
 
-    const verified = speakeasy.totp.verify({
-      secret: userData.twoFactorSecret,
-      encoding: "base32",
-      token,
-      window: 1,
-    });
-
-    if (!verified) {
+    if (!verifyTotp(userData.twoFactorSecret, token)) {
       return errorResponse("Código inválido", 400);
     }
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { twoFactorEnabled: false, twoFactorSecret: null },
+      data: {
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        twoFactorRecoveryCodes: Prisma.JsonNull,
+      },
     });
 
     await createLog({
-      action: "AI_CONFIG_CHANGE",
+      action: "TWOFA_DISABLE",
       entity: "user",
       entityId: user.id,
       description: "2FA desativado",
@@ -51,8 +49,9 @@ export async function POST(request: NextRequest) {
       userId: user.id,
     });
 
-    return successResponse({ message: "2FA desativado com sucesso" });
-  } catch {
+    return successResponse({ message: "2FA desativado" });
+  } catch (error) {
+    console.error(error);
     return errorResponse("Erro interno do servidor", 500);
   }
 }

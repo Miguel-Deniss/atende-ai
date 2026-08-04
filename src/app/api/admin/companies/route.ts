@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
     if (!user) return unauthorizedResponse();
-    if (user.role !== "ADMIN") return forbiddenResponse("Apenas administradores podem acessar esta área");
+    if (user.role !== "SUPER_ADMIN") return forbiddenResponse("Apenas super administradores podem acessar esta área");
 
     const { searchParams } = new URL(request.url);
     const parsed = paginationSchema.safeParse({

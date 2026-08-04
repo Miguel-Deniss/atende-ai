@@ -18,6 +18,10 @@ const PUBLIC_PATHS = [
   "/legal",
   "/privacy",
   "/terms",
+  "/refund",
+  "/help",
+  "/faq",
+  "/status",
 ];
 
 const AUTH_API_PATHS = ["/api/auth/"];

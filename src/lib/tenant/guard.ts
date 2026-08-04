@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { errorResponse, unauthorizedResponse, forbiddenResponse } from "@/lib/auth/api-response";
 import { logger } from "@/lib/logger/structured";
+import { isCompanyAdmin } from "@/lib/auth/permissions";
 import type { LimitCheck } from "./plan-limits";
 
 export interface TenantContext {
@@ -81,7 +82,7 @@ export async function validateResourceAccess<T extends { companyId: string }>(
     };
   }
 
-  if (resource.companyId !== context.companyId && context.role !== "ADMIN") {
+  if (resource.companyId !== context.companyId && !isCompanyAdmin(context.role)) {
     logger.warn(`IDOR attempt blocked`, {
       action: "idor_blocked",
       userId: context.userId,
@@ -105,7 +106,7 @@ export async function enforceResourceAccess(
   resourceName: string
 ): Promise<boolean> {
   if (!resourceId || !companyId) return false;
-  if (context.role === "ADMIN") return true;
+  if (isCompanyAdmin(context.role)) return true;
 
   if (companyId !== context.companyId) {
     logger.warn(`IDOR attempt on ${resourceName}`, {

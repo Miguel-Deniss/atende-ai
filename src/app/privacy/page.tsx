@@ -67,22 +67,35 @@ export default function PrivacyPage() {
             <li>Revogar consentimento a qualquer momento</li>
             <li>Saber com quem compartilhamos seus dados</li>
           </ul>
+          <p className="mt-2">
+            Você pode exercer esses direitos diretamente no painel:
+            <span className="block ml-2">• Exportação de dados: configurações da empresa (gera um JSON com todos os seus dados)</span>
+            <span className="block ml-2">• Exclusão de dados: configurações da empresa (anônima os dados pessoais de clientes, agendamentos e conversas)</span>
+          </p>
         </Section>
 
-        <Section title="6. Retenção de Dados">
+        <Section title="6. Autenticação em Dois Fatores (2FA)">
+          Ativamos 2FA para administradores da plataforma (super administradores e administradores de empresa).
+          No momento da ativação, são gerados 10 códigos de recuperação únicos de uso único. Guarde-os em local seguro:
+          eles permitem acessar sua conta caso você perca o acesso ao aplicativo autenticador. Códigos usados são invalidados
+          automaticamente e novos podem ser gerados reativando a configuração.
+        </Section>
+
+        <Section title="7. Retenção de Dados">
           Mantemos seus dados enquanto sua conta estiver ativa. Após o cancelamento, os dados são mantidos por 90 dias para recuperação e depois excluídos permanentemente.
+          Assinaturas e histórico de cobrança são mantidos para fins fiscais e de auditoria pelo prazo legal.
         </Section>
 
-        <Section title="7. Cookies">
+        <Section title="8. Cookies">
           Utilizamos cookies essenciais para o funcionamento da plataforma. Não utilizamos cookies de rastreamento ou publicidade.
         </Section>
 
-        <Section title="8. Contato">
+        <Section title="9. Contato">
           Para exercer seus direitos ou esclarecer dúvidas, entre em contato:
           <p className="mt-2">Email: privacidade@atendeai.com</p>
         </Section>
 
-        <p className="text-sm text-gray-500 mt-8">Última atualização: Julho 2026</p>
+        <p className="text-sm text-gray-500 mt-8">Última atualização: Agosto 2026</p>
       </div>
     </div>
   );

@@ -93,7 +93,7 @@ Pequenas e médias empresas (barbearias, salões de beleza, clínicas) recebem d
 
 | Provider | Status | Modelo |
 |---|---|---|
-| Ollama | Implementado | llama3.2 (local) |
+| Ollama | Implementado | qwen3:8b (local) |
 | OpenAI | Configurado via env vars | gpt-4 (configurado como padrão no schema) |
 
 ### Infraestrutura
@@ -165,11 +165,19 @@ atende-ai/
 │   │   ├── useDebounce.ts      # Debounce para inputs de busca
 │   │   └── useLocalStorage.ts  # Persistência local no navegador
 │   ├── lib/
-│   │   ├── ai/                 # Módulo de inteligência artificial
-│   │   │   ├── provider.ts     # Provider pattern (switch entre provedores)
-│   │   │   ├── assistant.ts    # Montagem do prompt e chamada à IA
-│   │   │   └── providers/
-│   │   │       └── ollama.ts   # Integração com Ollama
+│   │   ├── ai/                 # Módulo de inteligência artificial (conversation manager)
+│   │   │   ├── assistant.ts    # Fachada pública: generateAIResponse(input)
+│   │   │   ├── conversation-manager.ts  # Orquestrador (state machine + slot filling)
+│   │   │   ├── intention-detector.ts    # Detecção de intenção (determinística + fallback LLM)
+│   │   │   ├── slot-extractor.ts        # Extração de slots (serviço, data, hora, nome)
+│   │   │   ├── prompt-builder.ts        # Construção dinâmica do prompt (estado + contexto)
+│   │   │   ├── conversation-state.ts    # Persistência do estado (coluna `state` Json)
+│   │   │   ├── context-loader.ts        # Carrega conversa + empresa + knownName
+│   │   │   ├── guardrails.ts            # isGarbageResponse + containsInventedInfo
+│   │   │   ├── appointment-date.ts      # Resolução de datas livres em Date
+│   │   │   ├── provider.ts              # Chamada ao modelo (Ollama / qwen3:8b)
+│   │   │   └── flows/
+│   │   │       └── appointment.ts       # Máquina de estados do agendamento
 │   │   ├── api/
 │   │   │   └── client.ts       # Cliente HTTP genérico com retry e timeout
 │   │   ├── auth/
@@ -229,7 +237,7 @@ atende-ai/
 | `src/components/` | Componentes React reutilizáveis, divididos em UI primitives, dashboard, landing page e sistema de conversas |
 | `src/contexts/` | Contextos React — atualmente apenas o AuthContext que gerencia estado de autenticação no cliente |
 | `src/lib/` | Core da aplicação: toda a lógica de negócio, serviços, segurança, integrações e utilitários |
-| `src/lib/ai/` | Módulo de IA separado em camadas: provider, assistant e providers individuais |
+| `src/lib/ai/` | Módulo de IA em camadas: fachada, conversation manager (state machine), detecção de intenção, extração de slots, prompt builder e provider |
 | `src/lib/auth/` | Autenticação completa: JWT, sessões, senhas, respostas padronizadas |
 | `src/lib/tenant/` | Isolamento multi-tenant: validação de acesso, guard, limites por plano |
 | `src/lib/security/` | Camada de segurança: criptografia, sanitização, CSRF, nonce, anti-enumeration |
@@ -645,32 +653,91 @@ A IA atua como atendente virtual. Não há distinção visual entre resposta da 
 
 ```
 1. POST /api/conversations/[id]/messages
-   ├── Verifica autenticação do usuário
-   ├── Busca a conversa (com validação de companyId)
+   ├── Verifica autenticação do usuário (getCurrentUser)
+   ├── Carrega contexto (context-loader): conversa + empresa + aiConfig + knownName + handledById + phone
    ├── Valida o corpo da mensagem
-   ├── Salva a mensagem do usuário no banco
    │
-   ├── Busca histórico: últimas 20 mensagens ordenadas por data
+   ├── Conversa assumida por humano (handledById preenchido)?
+   │   └── SIM: salva a mensagem (role: "assistant") e reply = conteúdo digitado (sem IA)
+   │   └── NÃO: chama IA:
+   │       └── generateAIResponse({ conversationId, message, company, knownName })
+   │           └── conversation-manager.processMessage()
+   │               ├── Salva mensagem do usuário (role: "user")
+   │               ├── Carrega o estado atual da conversa (coluna `state`)
+   │               ├── Detecta intenção (detectIntent + fallback LLM)
+   │               ├── Extrai slots (serviço, data, hora, nome)
+   │               ├── Computa o próximo passo (flows/appointment)
+   │               ├── Monta prompt dinâmico (prompt-builder: estado + contexto + últimas 3 msg)
+   │               ├── Chama provider.chat() → Ollama (qwen3:8b)
+   │               ├── Valida resposta (guardrails: lixo + informação inventada)
+   │               ├── Se confirmado: persiste Appointment (appointment-date resolve a data)
+   │               ├── Salva resposta da IA (role: "assistant")
+   │               └── Salva o novo estado
    │
-   ├── Chama IA:
-   │   └── generateAIResponse(histórico, dados da empresa)
-   │       └── provider.chat(messages)
-   │           └── ollama.chat({ model: "llama3.2", messages })
-   │
-   ├── Salva a resposta da IA no banco (role: "assistant")
-   └── Retorna a mensagem do usuário criada
+   ├── Atualiza lastMessage/lastMessageAt/unread:false
+   ├── Se a conversa tem phone: deliverWhatsAppMessage(companyId, phone, reply)
+   │     → busca WhatsAppConfig CONNECTED da empresa, descriptografa o token e
+   │       POST graph.facebook.com/v20.0/{phone_number_id}/messages
+   ├── Publica eventos "message" + "conversation" (src/lib/realtime → SSE)
+   └── Retorna a resposta (com flag `handled`) ao frontend
 ```
+
+### Tempo real (SSE) e Assunção manual (Takeover)
+
+A UI do dashboard sincroniza conversas e mensagens em tempo real:
+
+- **`GET /api/conversations/events`** abre um stream Server-Sent Events autenticado. Usa um `EventEmitter` em memória (`src/lib/realtime/index.ts`) com `publish(companyId, type, data)` / `subscribe(companyId, listener)`. Eventos nomeados: `ready`, `heartbeat` (15s), `message` (`{ conversationId, role, content }`), `conversation` (`{ id }`).
+- Qualquer escrita relevante (webhook, envio de mensagem, takeover, release, marcação de lida) publica eventos **filtrados por empresa** — cliente de A não recebe evento de B.
+- A página (`src/app/dashboard/conversations/page.tsx`) assina o SSE e, como fallback (última linha de defesa para deploy multi-instância), faz polling a cada 20s.
+
+**Assunção manual (takeover)** — campo `Conversation.handledById` (relação com `User`) + `handledAt`:
+
+- **`POST /api/conversations/[id]/takeover`** — um atendente assume a conversa (`handledById = user.id`).
+- **`POST /api/conversations/[id]/release`** — devolve a conversa ao fluxo automático (`handledById = null`).
+- Enquanto assumida:
+  - O **webhook** salva a mensagem recebida do cliente (role `user`), atualiza `lastMessage`/`unread` e **não chama a IA nem envia resposta** (`processWhatsAppWebhook` retorna `handled`).
+  - O **POST /messages** do painel responde **direto ao WhatsApp** sem passar pela IA.
+- A lista (`GET /api/conversations`) expõe `handledBy: { id, name } | null` e `handledAt`; a UI mostra badge "Atendida por X" e os botões **Assumir**/**Liberar**.
+
+### Fluxo do Webhook WhatsApp (entrada real de clientes)
+
+Cada empresa conecta o **próprio WhatsApp Business** (Multi-tenant). Os clientes interagem pelo WhatsApp — o AtendeAI recebe a mensagem via webhook, descobre a empresa pelo `phone_number_id`, processa com o mesmo ConversationManager e responde de volta pela Meta Cloud API usando o token da própria empresa:
+
+```
+1. Meta envia POST /api/webhooks/whatsapp (payload com entry[].changes[].value)
+   ├── Valida assinatura HMAC (verifyMetaSignature com META_APP_SECRET; exige prefixo sha256=)
+   ├── Loga WEBHOOK_RECEIVED e salva WebhookEvent (status: received)
+   │
+   └── processWhatsAppWebhook (src/lib/whatsapp/webhook.ts)
+       ├── Extrai mensagens de texto (ignora statuses/delivery receipts e mídia)
+       ├── Descobre a empresa por WhatsAppConfig.phoneNumberId (metadata.phone_number_id, status CONNECTED)
+       ├── Get-or-create Client por (companyId, phone) via findOrCreateWhatsAppClient (client.ts)
+       │     profile.name → Client.whatsappName; knownName = profile.name válido ou null (needsName)
+       ├── Busca Conversation aberta por (companyId, clientId) — fallback por phone; cria se não existir
+       ├── Conversa assumida por humano (handledById)? SIM → salva a mensagem (role user),
+       │     atualiza lastMessage/unread, publica eventos e pula (não aciona IA)
+       ├── loadConversationContext + conversation-manager.processMessage()
+       ├── Descriptografa accessToken da config (encryption.ts) e
+       │     sendWhatsAppMessage → POST graph.facebook.com/v20.0/{phone_number_id}/messages
+       └── Atualiza lastMessage/lastMessageAt/unread e publica eventos (message + conversation)
+    └── WebhookEvent vira "processed" (ou "failed") e retorna 200 sempre
+```
+
+O `WhatsAppConfig` (1:1 por empresa) guarda `phoneNumberId`, `businessAccountId`, `phoneNumber`, `status` e o `accessToken` **criptografado** (`aes-256-gcm`). Conexão/desconexão via `POST /api/settings/whatsapp/connect` e `/disconnect`; status via `GET /api/settings/whatsapp/status` (nunca expõe o token). O `.env` só contém credenciais da aplicação Meta (`META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`).
+
+Agendamentos confirmados no WhatsApp persistem via `persistAppointment`, agora vinculados ao `Client` real (nome + telefone) porque a conversa já possui `clientId`.
 
 ### Integração com IA
 
 O fluxo de IA dentro de uma conversa:
 
 1. O usuário envia uma mensagem via API.
-2. O sistema busca as últimas 20 mensagens da conversa como histórico.
-3. O `assistant.ts` monta o contexto da empresa (nome, telefone, endereço, horário, mensagem de boas-vindas).
-4. O `provider.ts` seleciona o provedor de IA baseado na env var `AI_PROVIDER`.
-5. A resposta da IA é salva automaticamente como mensagem do assistente.
-6. A mensagem original do usuário é retornada para o frontend.
+2. O `context-loader` busca a conversa, a empresa (com `aiConfig`, `services`, `faq`) e o nome do cliente (`knownName`).
+3. O `conversation-manager` assume o controle do diálogo: o código decide o fluxo (state machine + slot filling) e a IA apenas gera texto.
+4. O `provider.ts` faz a chamada HTTP ao Ollama (`qwen3:8b`).
+5. A resposta passa pelos guardrails (lixo / informação inventada).
+6. Ao confirmar um agendamento, o `Appointment` é persistido no banco.
+7. A resposta da IA é salva automaticamente como mensagem do assistente, junto com o novo estado da conversa.
 
 ---
 
@@ -678,7 +745,7 @@ O fluxo de IA dentro de uma conversa:
 
 ### Como a IA é Chamada
 
-A chamada à IA segue uma arquitetura em três camadas:
+A chamada à IA segue uma arquitetura em camadas onde o **código controla o fluxo** da conversa e a IA apenas gera texto:
 
 ```
 ┌─────────────────────────────────────┐
@@ -688,85 +755,84 @@ A chamada à IA segue uma arquitetura em três camadas:
                │
                ▼
 ┌─────────────────────────────────────┐
-│  lib/ai/assistant.ts                │
-│  - Monta o system prompt            │
-│  - Formata o histórico              │
-│  - Chama provider.chat()            │
+│  lib/ai/assistant.ts (fachada)      │
+│  - generateAIResponse(input)        │
+│  - Delega para conversation-manager │
 └──────────────┬──────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────┐
-│  lib/ai/provider.ts                 │
-│  - Lê env AI_PROVIDER               │
-│  - Switch entre provedores          │
-│  - Encaminha para implementação     │
-└──────────────┬──────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────┐
-│  lib/ai/providers/ollama.ts         │
-│  - Implementação específica         │
-│  - Chamada ao modelo                │
-└─────────────────────────────────────┘
+│  lib/ai/conversation-manager.ts     │
+│  - processMessage()                 │
+│  - Detecta intenção + slots         │
+│  - Computa próximo passo (state)    │
+│  - Monta prompt + chama provider    │
+│  - Guardrails + persiste estado     │
+└──────┬──────────────┬───────────────┘
+       │              │
+       ▼              ▼
+┌──────────────────┐ ┌──────────────────┐
+│ módulos puros    │ │ provider.ts      │
+│ intention-       │ │ - payload Ollama │
+│ detector, slot-  │ │ - fetch HTTP     │
+│ extractor,       │ │ qwen3:8b         │
+│ prompt-builder,  │ └────────┬─────────┘
+│ flows/appointment│          ▼
+│ appointment-date │   ┌──────────────┐
+│ (testáveis)      │   │ Ollama local │
+└──────────────────┘   └──────────────┘
 ```
 
 ### Providers Existentes
 
 | Provider | Status | Arquivo | Modelo Padrão |
 |---|---|---|---|
-| Ollama | Implementado | `lib/ai/providers/ollama.ts` | llama3.2 |
-| OpenAI | Configurável via env | Apenas no health check | gpt-4 (schema) |
+| Ollama | Implementado | `lib/ai/provider.ts` (fetch HTTP direto) | qwen3:8b |
 
-O provedor atual é definido pela variável de ambiente `AI_PROVIDER`. O valor padrão é `"ollama"`.
+A chamada ao modelo é feita diretamente via `fetch` para `http://localhost:11434/api/chat` no `provider.ts`. O `assistant.ts` é a fachada pública; `conversation-manager.ts` orquestra o diálogo.
 
 ### Separação entre Provider e Lógica de Negócio
 
-A separação é limpa: `assistant.ts` monta o *contexto de negócio* e `provider.ts` + `providers/` cuidam da *comunicação com o modelo*. Isso permite que:
+A separação é limpa: módulos puros (`intention-detector`, `slot-extractor`, `prompt-builder`, `flows/appointment`, `appointment-date`) cuidam da *lógica de negócio e do diálogo*; `provider.ts` cuida da *comunicação com o modelo*. Isso permite que:
 
-- A lógica de negócio (system prompt, regras, contexto) seja mantida em um só lugar (`assistant.ts`)
-- Novos provedores sejam adicionados sem alterar a lógica de negócio
-- Cada provedor tenha sua própria implementação de chamada HTTP/cliente SDK
+- O fluxo da conversa (state machine + slot filling) seja determinístico e testado em `src/__tests__/ai/`
+- A IA não controle a conversa: ela só responde ao objetivo derivado do estado atual
+- O modelo seja trocado sem alterar a lógica de negócio (basta alterar `provider.ts`)
+- Dependências sejam injetáveis (`ConversationManagerDeps`), facilitando testes com LLM fake
 
 ### Contexto Enviado para IA
 
-O system prompt enviado para a IA inclui:
+O prompt é montado dinamicamente pelo `prompt-builder.ts` com base no **estado da conversa** e nos dados da empresa:
 
 ```
 Você é o atendente virtual da empresa "{company.name}".
 
-Informações da empresa:
-  Nome: {company.name}
-  Telefone: {company.phone}
-  Endereço: {company.address}
-  Horário: {company.hours}
-  Mensagem de boas-vindas: {company.welcomeMessage}
+ESTADO DA CONVERSA:
+  Intenção atual: {appointment | service | faq | human | none | other}
+  Passo atual: {waiting_service | waiting_date | waiting_time | waiting_name | confirming | finished}
+  Slots já coletados: serviço, data, hora, nome
+  Objetivo atual: {perguntar serviço | perguntar data | perguntar hora | perguntar nome | confirmar | finalizar}
 
-REGRAS:
-  - Responda sempre em português do Brasil
-  - Seja educado e profissional
-  - Nunca invente informações
-  - Nunca diga que a empresa oferece um serviço se não estiver informado
-  - Se não souber responder, encaminhe para atendente humano
+DADOS DA EMPRESA:
+  Nome: {company.name}
+  Telefone/Endereço/Horário (quando cadastrados)
+  Serviços: lista com nome e preço (services)
+  FAQ: perguntas e respostas cadastradas
+  Instruções e personalidade (aiConfig)
+
+ÚLTIMAS 3 MENSAGENS (histórico curto)
 ```
 
-Nota: O schema Prisma também prevê campos `personality`, `instructions`, `services` e `faq` no `AIConfig`, mas estes não são utilizados atualmente no `assistant.ts`.
+Todos os campos do `AIConfig` (`personality`, `instructions`, `services`, `faq`) são utilizados. O objetivo do prompt muda conforme o passo do estado — a IA nunca decide o próximo passo sozinha.
 
 ### Histórico Enviado
 
-As últimas 20 mensagens da conversa são enviadas como histórico, mantendo a ordem cronológica. Cada mensagem inclui `role` (user/assistant) e `content`.
+Apenas as **últimas 3 mensagens** da conversa são enviadas, em ordem cronológica. Quando o histórico conflita com o estado, o **estado prevalece** — o estado salvo na coluna `state` (Json) da `Conversation` é a memória primária do diálogo.
 
 ### Como Adicionar Novos Modelos Futuramente
 
-1. Criar um arquivo em `lib/ai/providers/` (ex: `lib/ai/providers/openai.ts`).
-2. Implementar a função `chat(messages)` que retorna uma string.
-3. Adicionar um `case` no switch de `lib/ai/provider.ts`:
-
-```typescript
-case "openai":
-  return openaiChat(messages);
-```
-
-4. Configurar a env `AI_PROVIDER` para o nome do novo provedor.
+1. Alterar `lib/ai/provider.ts` (função `chat(messages)`) para o novo endpoint/modelo.
+2. Os módulos de negócio e a fachada não precisam de mudanças, pois dependem apenas da interface `LLMMessage`.
 
 ---
 
@@ -1052,7 +1118,7 @@ Todas as ações importantes são registradas na tabela `AuditLog` com:
 - **Recuperação de Senha**: Fluxo forgot-password e reset-password (endpoints implementados, integração com email pendente)
 - **Dashboard**: Página principal com KPIs, conversas recentes, agenda do dia, gráfico de atendimentos
 - **Conversas**: Sistema de chat completo com sidebar de conversas, envio de mensagens, resposta da IA, detalhes do cliente
-- **IA com Ollama**: Integração funcional com Ollama (modelo llama3.2) usando provider pattern
+- **IA com Ollama**: Integração funcional com Ollama (modelo qwen3:8b) — Conversation Manager com state machine, detecção de intenção, extração de slots, guardrails e persistência de agendamentos
 - **Agenda**: Calendário mensal, criação de agendamentos, status (confirmado/pendente), persistência local
 - **Clientes**: CRUD completo com busca, filtro por status, persistência local
 - **Configurações**: Edição de dados da empresa, serviços, mensagens, FAQ, configs da IA

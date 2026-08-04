@@ -68,6 +68,28 @@ export async function validateSession(sessionToken: string) {
   };
 }
 
+// Revogar sessão específica
+export async function revokeSession(sessionToken: string) {
+  await prisma.session.updateMany({
+    where: {
+      sessionToken,
+      isRevoked: false,
+    },
+    data: { isRevoked: true },
+  });
+}
+
+// Revogar todas as sessões de um usuário
+export async function revokeAllUserSessions(userId: string) {
+  await prisma.session.updateMany({
+    where: {
+      userId,
+      isRevoked: false,
+    },
+    data: { isRevoked: true },
+  });
+}
+
 // Criar cookies de autenticação
 export async function setAuthCookies(
   userId: string,
@@ -165,6 +187,7 @@ export async function getCurrentUser() {
         role: true,
         companyId: true,
         isActive: true,
+        twoFactorEnabled: true,
 
         company: {
           select: {

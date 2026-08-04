@@ -2,6 +2,11 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { generateAIResponse } from "@/lib/ai/assistant";
+import { loadConversationContext } from "@/lib/ai/context-loader";
+import { deliverWhatsAppMessage } from "@/lib/whatsapp/deliver";
+import { publish } from "@/lib/realtime";
+import { enforceBilling } from "@/lib/billing/subscription";
+import { guardRateLimit } from "@/lib/rate-limit/with-rate-limit";
 
 import {
   successResponse,
@@ -9,20 +14,6 @@ import {
   unauthorizedResponse,
   notFoundResponse,
 } from "@/lib/auth/api-response";
-
-function isGarbageResponse(content: string): boolean {
-  const garbagePatterns = [
-    /sou um modelo de linguagem/i,
-    /como uma ia/i,
-    /como modelo de linguagem/i,
-    /treinado por pesquisadores/i,
-    /não tenho consciência/i,
-    /não tenho sentimentos/i,
-    /meta/i,
-    /llama/i,
-  ];
-  return garbagePatterns.some((p) => p.test(content));
-}
 
 export async function GET(
   request: NextRequest,
@@ -35,26 +26,9 @@ export async function GET(
 
     const { id } = await params;
 
-    const conversation = await prisma.conversation.findFirst({
-      where: {
-        id,
-        companyId: user.companyId,
-      },
-      include: {
-        company: {
-          include: {
-            aiConfig: {
-              include: {
-                services: true,
-                faq: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const context = await loadConversationContext(id, user.companyId);
 
-    if (!conversation) {
+    if (!context) {
       return notFoundResponse("Conversa não encontrada");
     }
 
@@ -66,6 +40,12 @@ export async function GET(
         createdAt: "asc",
       },
     });
+
+    await prisma.conversation.update({
+      where: { id },
+      data: { unread: false },
+    });
+    publish(user.companyId, "conversation", { id });
 
     return successResponse(messages);
   } catch (error) {
@@ -86,31 +66,23 @@ export async function POST(
 
     const { id } = await params;
 
-    const conversation = await prisma.conversation.findFirst({
-      where: {
-        id,
-        companyId: user.companyId,
-      },
-      include: {
-        company: {
-          include: {
-            aiConfig: {
-              include: {
-                services: true,
-                faq: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const context = await loadConversationContext(id, user.companyId);
 
-    if (!conversation) {
+    if (!context) {
       return notFoundResponse("Conversa não encontrada");
     }
 
-    if (!conversation.company.aiConfig) {
-      return errorResponse("Configuração da IA não encontrada", 400);
+    const billing = await enforceBilling(user.companyId);
+    if (!billing.allowed) {
+      return errorResponse(`Acesso bloqueado: ${billing.reason}`, 402);
+    }
+
+    const blocked = guardRateLimit(
+      request,
+      `messages:${user.companyId}:${user.id}`
+    );
+    if (blocked) {
+      return blocked;
     }
 
     const body = await request.json();
@@ -119,122 +91,87 @@ export async function POST(
       return errorResponse("Mensagem inválida", 400);
     }
 
-    console.log("====================================");
-    console.log("NOVA MENSAGEM DO USUÁRIO:");
-    console.log(body.content);
-    console.log("====================================");
+    const handled = Boolean(context.handledById);
 
-    await prisma.message.create({
-      data: {
-        role: "user",
-        content: body.content,
-        conversationId: id,
-      },
-    });
+    let reply: string;
 
-    const history = await prisma.message.findMany({
-      where: {
-        conversationId: id,
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-      take: 20,
-    });
+    if (handled) {
+      reply = body.content;
 
-    console.log("========== HISTORY ==========");
-    console.log(
-      history.map((m, index) => ({
-        index,
-        role: m.role,
-        content: m.content,
-      }))
-    );
-    console.log("=============================");
-
-    const cleanHistory = history.map((m) => {
-      if (m.role === "assistant" && isGarbageResponse(m.content)) {
-        return {
-          role: "assistant" as const,
-          content: "[Mensagem do assistente filtrada por não atender aos padrões de qualidade]",
-        };
+      await prisma.message.create({
+        data: {
+          conversationId: id,
+          role: "assistant",
+          content: reply,
+        },
+      });
+    } else {
+      if (!context.company.aiConfig) {
+        return errorResponse("Configuração da IA não encontrada", 400);
       }
-      return {
-        role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
-        content: m.content,
-      };
-    });
 
-    console.log("========== CLEAN HISTORY ==========");
-    console.log(cleanHistory);
-    console.log("===================================");
+      const result = await generateAIResponse({
+        conversationId: id,
+        message: body.content,
+        company: context.company,
+        knownName: context.knownName,
+      });
 
-    console.log("ÚLTIMA MENSAGEM:");
-    console.log(cleanHistory.at(-1));
+      reply = result.response;
+    }
 
-    console.log("PENÚLTIMA MENSAGEM:");
-    console.log(cleanHistory.at(-2));
-
-    console.log("TOTAL:", cleanHistory.length);
-
-    console.log("AI CONFIG:");
-    console.log(conversation.company.aiConfig);
-
-    console.log("ANTES DA IA", Date.now());
-
-    const aiResponse = await generateAIResponse(cleanHistory, {
-      name: conversation.company.name,
-      phone: conversation.company.phone,
-      address: conversation.company.address,
-      hours: conversation.company.hours,
-      welcomeMessage: conversation.company.welcomeMessage,
-
-      aiConfig: {
-        personality: conversation.company.aiConfig.personality,
-        instructions: conversation.company.aiConfig.instructions,
-
-        services:
-          conversation.company.aiConfig.services.map((service) => ({
-            name: service.name,
-            price: service.price,
-          })),
-
-        faq:
-          conversation.company.aiConfig.faq.map((item) => ({
-            question: item.question,
-            answer: item.answer,
-          })),
+    await prisma.conversation.update({
+      where: { id },
+      data: {
+        lastMessage: reply,
+        lastMessageAt: new Date(),
+        unread: false,
       },
     });
 
-    console.log("========== IA ==========");
-    console.log(aiResponse);
-    console.log("========================");
+    if (context.phone) {
+      await deliverWhatsAppMessage(user.companyId, context.phone, reply);
+    }
 
-    console.log("DEPOIS DA IA", Date.now());
+    publish(user.companyId, "message", {
+      conversationId: id,
+      role: "assistant",
+      content: reply,
+    });
+    publish(user.companyId, "conversation", { id });
 
-    if (isGarbageResponse(aiResponse)) {
-      console.error("IA RETORNOU LIXO:");
-      console.error(aiResponse);
+    return successResponse({
+      role: "assistant",
+      content: reply,
+      type: "text",
+      conversationId: id,
+      handled,
+    });
+  } catch (error) {
+    console.error(error);
 
+    const message = error instanceof Error ? error.message : "";
+
+    if (
+      message.includes("informacoes incorretas") ||
+      message.includes("resposta invalida")
+    ) {
       return errorResponse(
         "A IA gerou resposta inválida. Tente novamente.",
         500
       );
     }
 
-    const assistantMessage = await prisma.message.create({
-      data: {
-        role: "assistant",
-        content: aiResponse,
-        type: "text",
-        conversationId: id,
-      },
-    });
-
-    return successResponse(assistantMessage);
-  } catch (error) {
-    console.error(error);
+    if (
+      message.includes("agendamento") ||
+      message.includes("Horario") ||
+      message.includes("resolver a data")
+    ) {
+      return errorResponse(
+        "Não foi possível salvar o agendamento. Tente novamente.",
+        500
+      );
+    }
 
     return errorResponse("Erro interno do servidor", 500);
   }

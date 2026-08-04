@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { isCompanyAdmin } from "@/lib/auth/permissions";
 
 export async function validateCompanyAccess(
   companyId: string,
@@ -21,7 +22,7 @@ export async function validateCompanyAccess(
     return { allowed: false, reason: "Acesso negado a esta empresa" };
   }
 
-  if (user.role === "ADMIN") {
+  if (isCompanyAdmin(user.role)) {
     return { allowed: true };
   }
 

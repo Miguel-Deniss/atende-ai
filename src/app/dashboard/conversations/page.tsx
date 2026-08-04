@@ -10,6 +10,8 @@ interface Conversation {
   unread: boolean;
   lastMessage: string | null;
   lastMessageAt: string | null;
+  handledBy: { id: string; name: string } | null;
+  handledAt: string | null;
 }
 
 interface Message {
@@ -80,6 +82,30 @@ export default function ConversationsPage() {
     }
   }
 
+  async function takeover() {
+    if (!selectedId) return;
+    try {
+      await fetch(`/api/conversations/${selectedId}/takeover`, {
+        method: "POST",
+      });
+      await loadConversations();
+    } catch {
+      console.error("Erro ao assumir conversa");
+    }
+  }
+
+  async function release() {
+    if (!selectedId) return;
+    try {
+      await fetch(`/api/conversations/${selectedId}/release`, {
+        method: "POST",
+      });
+      await loadConversations();
+    } catch {
+      console.error("Erro ao liberar conversa");
+    }
+  }
+
   useEffect(() => {
     loadConversations();
   }, []);
@@ -92,6 +118,43 @@ export default function ConversationsPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (typeof EventSource === "undefined") return;
+
+    const es = new EventSource("/api/conversations/events");
+
+    es.addEventListener("ready", () => {
+      loadConversations();
+    });
+
+    es.addEventListener("message", (ev) => {
+      try {
+        const payload = JSON.parse((ev as MessageEvent).data);
+        if (payload?.conversationId === selectedId) {
+          loadMessages();
+        }
+      } catch {
+        console.error("Erro ao processar evento");
+      }
+      loadConversations();
+    });
+
+    es.addEventListener("conversation", () => {
+      loadConversations();
+    });
+
+    return () => es.close();
+  }, [selectedId]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadConversations();
+      if (selectedId) loadMessages();
+    }, 20000);
+
+    return () => clearInterval(interval);
+  }, [selectedId]);
 
   return (
     <div className="flex h-[calc(100vh-4rem)] lg:h-[calc(100vh-2rem)] -m-4 lg:-m-8 overflow-hidden bg-[#0F172A]">
@@ -130,6 +193,11 @@ export default function ConversationsPage() {
                       </div>
                       {c.unread && (
                         <div className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-green-500 ring-2 ring-[#111827]" />
+                      )}
+                      {c.handledBy && (
+                        <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white ring-2 ring-[#111827]">
+                          H
+                        </div>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -172,14 +240,41 @@ export default function ConversationsPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
               {(selected.name ?? selected.phone).charAt(0).toUpperCase()}
             </div>
-            <div>
+            <div className="flex-1">
               <h2 className="text-sm font-medium text-white">{selected.name ?? "Cliente"}</h2>
               <p className="text-xs text-gray-400">{selected.phone}</p>
             </div>
+            {selected.handledBy && (
+              <span className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                Atendida por {selected.handledBy.name}
+              </span>
+            )}
+            {selected.handledBy ? (
+              <button
+                onClick={release}
+                className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 hover:border-gray-500 hover:text-white"
+              >
+                Liberar
+              </button>
+            ) : (
+              <button
+                onClick={takeover}
+                className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600"
+              >
+                Assumir
+              </button>
+            )}
           </div>
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-4">
+            {selected.handledBy && (
+              <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                Atendimento humano ativo: suas respostas são enviadas direto ao
+                WhatsApp, sem passar pela IA.
+              </div>
+            )}
             {loadingMessages && (
               <div className="flex items-center justify-center h-full">
                 <span className="text-sm text-gray-400">Carregando mensagens...</span>

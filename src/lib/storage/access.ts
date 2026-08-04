@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { logger } from "@/lib/logger/structured";
+import { isCompanyAdmin } from "@/lib/auth/permissions";
 import crypto from "crypto";
 
 const SIGNED_URL_SECRET = process.env.SIGNED_URL_SECRET || "change-me-signed-url-secret";
@@ -32,7 +33,20 @@ export async function validateFileAccess(
     return { allowed: false, reason: "Arquivo não encontrado" };
   }
 
-  if (userRole === "ADMIN") {
+  if (isCompanyAdmin(userRole)) {
+    if (upload.companyId !== userCompanyId) {
+      logger.warn(`IDOR attempt on file access`, {
+        action: "idor_blocked_file",
+        userId,
+        metadata: {
+          uploadId,
+          fileCompanyId: upload.companyId,
+          userCompanyId,
+        },
+      });
+      return { allowed: false, reason: "Arquivo não encontrado" };
+    }
+
     return { allowed: true, record: upload };
   }
 

@@ -35,6 +35,13 @@ export async function GET() {
             createdAt: "desc",
           },
         },
+
+        handledBy: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -50,6 +57,8 @@ export async function GET() {
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
       clientId: c.clientId,
+      handledBy: c.handledBy ? { id: c.handledBy.id, name: c.handledBy.name } : null,
+      handledAt: c.handledAt ? c.handledAt.toISOString() : null,
     }));
 
     return successResponse(result);

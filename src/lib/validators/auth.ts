@@ -4,6 +4,7 @@ export const loginSchema = z.object({
   email: z.string().email("Email invalido").max(255),
   password: z.string().min(6, "Senha deve ter no minimo 6 caracteres").max(128),
   totpCode: z.string().length(6).optional(),
+  recoveryCode: z.string().min(8).max(64).optional(),
 });
 
 export const registerSchema = z.object({
@@ -101,6 +102,13 @@ export const companySettingsSchema = z.object({
   requireConfirmation: z.boolean().optional(),
 });
 
+export const whatsAppConnectSchema = z.object({
+  phoneNumberId: z.string().min(1, "Phone Number ID é obrigatório"),
+  businessAccountId: z.string().min(1, "Business Account ID é obrigatório"),
+  accessToken: z.string().min(1, "Access token é obrigatório"),
+  phoneNumber: z.string().min(1, "Número é obrigatório"),
+});
+
 export const paginationSchema = z.object({
   page: z.coerce.number().default(1),
   limit: z.coerce.number().default(10),
@@ -108,6 +116,55 @@ export const paginationSchema = z.object({
   status: z.string().optional(),
   sortBy: z.string().optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),
+});
+
+const companyAssignableRoles = ["ATTENDANT", "EMPLOYEE", "FINANCIAL"] as const;
+
+export const createUserSchema = z.object({
+  name: z.string().min(2, "Nome deve ter no minimo 2 caracteres").max(255),
+  email: z.string().email("Email invalido").max(255),
+  password: z
+    .string()
+    .min(8, "Senha deve ter no minimo 8 caracteres")
+    .max(128),
+  role: z.enum(companyAssignableRoles, {
+    message: "Papel nao permitido para gestao pela empresa",
+  }),
+  phone: z.string().max(20).optional(),
+});
+
+export const updateUserSchema = z.object({
+  name: z.string().min(2).max(255).optional(),
+  phone: z.string().max(20).optional(),
+  role: z.enum(companyAssignableRoles, {
+    message: "Papel nao permitido para gestao pela empresa",
+  }),
+  isActive: z.boolean().optional(),
+});
+
+export const couponSchema = z.object({
+  code: z.string().min(3, "Codigo muito curto").max(50),
+  discountType: z.enum(["PERCENTAGE", "FIXED"], {
+    message: "Tipo de desconto invalido",
+  }),
+  discountValue: z.number().int().positive("Valor deve ser positivo"),
+  maxUses: z.number().int().positive().optional(),
+  validUntil: z.string().datetime().optional(),
+  isActive: z.boolean().optional(),
+  allowedPlans: z.array(z.string()).optional(),
+});
+
+export const checkoutSchema = z.object({
+  planCode: z.string().min(1, "Plano e obrigatorio"),
+  couponCode: z.string().optional(),
+});
+
+export const dataExportScopeSchema = z.object({
+  scope: z
+    .enum(["all", "clients", "conversations", "appointments"], {
+      message: "Escopo invalido",
+    })
+    .optional(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

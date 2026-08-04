@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
+import { getPlanByCode } from "@/lib/billing/plans";
+import { recordBilling } from "@/lib/billing/subscription";
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,16 +45,33 @@ export async function POST(request: NextRequest) {
       case "checkout.session.completed": {
         const customerId = session.customer as string;
         const subscriptionId = session.subscription as string;
-        const priceId = (session as any).metadata?.price_id;
+        const metadata = (session as any).metadata ?? {};
+        const priceId = metadata.price_id ?? metadata.priceId;
+        const planCode = metadata.planCode ?? mapPriceIdToPlan(priceId);
 
-        await prisma.company.updateMany({
+        const company = await prisma.company.findFirst({
           where: { stripeCustomerId: customerId },
-          data: {
-            stripeSubscriptionId: subscriptionId,
-            subscriptionStatus: "ACTIVE",
-            ...(priceId ? { planType: mapPriceIdToPlan(priceId) } : {}),
-          },
         });
+
+        if (company) {
+          await prisma.company.update({
+            where: { id: company.id },
+            data: {
+              stripeSubscriptionId: subscriptionId,
+              subscriptionStatus: "ACTIVE",
+              planType: planCode as never,
+            },
+          });
+
+          await syncSubscriptionRow({
+            companyId: company.id,
+            planCode,
+            status: "ACTIVE",
+            amount: metadata.amount ? Number(metadata.amount) : 0,
+            action: "SUBSCRIPTION_CREATED",
+            description: `Checkout concluído: ${planCode}`,
+          });
+        }
 
         break;
       }
@@ -61,6 +80,7 @@ export async function POST(request: NextRequest) {
       case "customer.subscription.deleted": {
         const subscription = event.data.object as any;
         const status = subscription.status;
+        const planId = subscription.items?.data?.[0]?.price?.id;
 
         const dbStatus = mapStripeStatus(status);
         const company = await prisma.company.findFirst({
@@ -74,18 +94,17 @@ export async function POST(request: NextRequest) {
             where: { id: company.id },
             data: {
               subscriptionStatus: dbStatus,
-              ...(dbStatus === "CANCELED" || dbStatus === "PAST_DUE"
-                ? {}
-                : {}),
+              planType: (planId ? mapPriceIdToPlan(planId) : company.planType) as never,
             },
           });
 
-          await createLog({
-            action: "SUBSCRIPTION_CANCEL",
-            entity: "subscription",
-            entityId: company.id,
-            description: `Status da assinatura alterado: ${previousStatus} -> ${dbStatus}`,
+          await syncSubscriptionRow({
             companyId: company.id,
+            planCode: planId ? mapPriceIdToPlan(planId) : company.planType,
+            status: dbStatus,
+            action: dbStatus === "CANCELED" ? "SUBSCRIPTION_CANCEL" : "SUBSCRIPTION_RENEWED",
+            amount: 0,
+            description: `Status da assinatura alterado: ${previousStatus} -> ${dbStatus}`,
           });
         }
         break;
@@ -98,12 +117,15 @@ export async function POST(request: NextRequest) {
         });
 
         if (company) {
-          await createLog({
-            action: "PAYMENT_SUCCESS",
-            entity: "payment",
-            entityId: invoice.id as string,
-            description: `Pagamento recebido: ${invoice.amount_paid / 100} ${invoice.currency}`,
+          const amount = Math.round((invoice.amount_paid ?? 0) * (invoice.currency === "brl" ? 1 : 1));
+          await recordBilling({
             companyId: company.id,
+            action: "PAYMENT_SUCCESS",
+            amount,
+            currency: (invoice.currency ?? "BRL").toUpperCase(),
+            status: "paid",
+            description: `Pagamento recebido: ${(invoice.amount_paid ?? 0) / 100} ${invoice.currency}`,
+            metadata: { stripeInvoiceId: invoice.id as string },
           });
         }
         break;
@@ -121,12 +143,20 @@ export async function POST(request: NextRequest) {
             data: { subscriptionStatus: "PAST_DUE" },
           });
 
-          await createLog({
-            action: "PAYMENT_FAILURE",
-            entity: "payment",
-            entityId: failedInvoice.id as string,
-            description: `Falha no pagamento: ${failedInvoice.amount_due / 100} ${failedInvoice.currency}`,
+          await prisma.subscription.updateMany({
+            where: { companyId: failedCompany.id },
+            data: { status: "PAST_DUE" },
+          });
+
+          const amount = Math.round((failedInvoice.amount_due ?? 0) * 1);
+          await recordBilling({
             companyId: failedCompany.id,
+            action: "PAYMENT_FAILURE",
+            amount,
+            currency: (failedInvoice.currency ?? "BRL").toUpperCase(),
+            status: "failed",
+            description: `Falha no pagamento: ${(failedInvoice.amount_due ?? 0) / 100} ${failedInvoice.currency}`,
+            metadata: { stripeInvoiceId: failedInvoice.id as string },
           });
         }
         break;
@@ -134,16 +164,63 @@ export async function POST(request: NextRequest) {
     }
 
     return new Response(JSON.stringify({ received: true }), { status: 200 });
-  } catch {
+  } catch (error) {
+    console.error(error);
     return errorResponse("Erro interno do servidor", 500);
   }
 }
 
-function mapPriceIdToPlan(priceId: string): "STARTER" | "PRO" | "BUSINESS" {
+async function syncSubscriptionRow(params: {
+  companyId: string;
+  planCode: string;
+  status: "ACTIVE" | "PAST_DUE" | "CANCELED" | "INCOMPLETE" | "TRIALING";
+  amount: number;
+  action: "SUBSCRIPTION_CREATED" | "SUBSCRIPTION_CANCEL" | "SUBSCRIPTION_RENEWED";
+  description: string;
+}) {
+  const plan = await getPlanByCode(params.planCode);
+  if (!plan) return;
+
+  const now = new Date();
+  const nextBillingDate = new Date(now);
+  nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+
+  await prisma.subscription.upsert({
+    where: { companyId: params.companyId },
+    update: {
+      planId: plan.id,
+      status: params.status,
+      nextBillingDate,
+      expiresAt: params.status === "ACTIVE" ? nextBillingDate : null,
+      ...(params.status === "CANCELED" ? { canceledAt: now } : { canceledAt: null }),
+    },
+    create: {
+      companyId: params.companyId,
+      planId: plan.id,
+      status: params.status,
+      startedAt: now,
+      nextBillingDate,
+      expiresAt: params.status === "ACTIVE" ? nextBillingDate : null,
+    },
+  });
+
+  await recordBilling({
+    companyId: params.companyId,
+    action: params.action,
+    amount: params.amount,
+    status: params.status.toLowerCase(),
+    description: params.description,
+    metadata: { source: "stripe_webhook", planCode: params.planCode },
+  });
+}
+
+function mapPriceIdToPlan(priceId: string): "STARTER" | "PRO" | "BUSINESS" | "ENTERPRISE" {
   const env = process.env;
   if (priceId === env.STRIPE_STARTER_PRICE_ID) return "STARTER";
   if (priceId === env.STRIPE_PRO_PRICE_ID) return "PRO";
   if (priceId === env.STRIPE_BUSINESS_PRICE_ID) return "BUSINESS";
+  if (priceId === env.STRIPE_ENTERPRISE_PRICE_ID) return "ENTERPRISE";
+  if (typeof priceId === "string" && priceId.toUpperCase().includes("ENTERPRISE")) return "ENTERPRISE";
   return "STARTER";
 }
 

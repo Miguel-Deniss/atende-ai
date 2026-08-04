@@ -92,11 +92,12 @@ src/
 ├── hooks/           → useDebounce, useLocalStorage
 └── lib/
     ├── api/         → API client (fetch wrapper com retry)
-    ├── auth/        → JWT, Session, Password, API Response
+    ├── auth/        → JWT, Session, Password, RBAC (permissions/api-guard), 2FA (two-factor), API Response
+    ├── billing/     → Planos, cupons, assinaturas (enforceBilling), Stripe/demo checkout
     ├── db/          → Prisma client singleton
     ├── logger/      → Structured logger + Audit logger
     ├── monitoring/  → Sentry wrapper
-    ├── rate-limit/  → In-memory rate limiter
+    ├── rate-limit/  → In-memory rate limiter + guardRateLimit (api/webhook)
     ├── resilience/  → Circuit breaker, retry, timeout
     ├── security/    → CSRF, Encryption, Sanitize, Nonce, Enumeration
     ├── storage/     → File access validation, signed URLs
@@ -105,6 +106,16 @@ src/
     ├── upload/      → File upload handling
     └── validators/  → Zod schemas
 ```
+
+## Fase SaaS (Billing + RBAC + 2FA + LGPD)
+
+- **RBAC**: `src/lib/auth/permissions.ts` (matriz de permissões) + `src/lib/auth/api-guard.ts` (`requireAuth`/`requireRole`/`requirePermission`). `SUPER_ADMIN` governa `/admin/*` global; `ADMIN` governa a própria empresa.
+- **Billing**: `src/lib/billing/{plans,coupons,subscription,stripe}.ts`. Checkout em **modo demo** sem `STRIPE_SECRET_KEY` (assinatura local ACTIVE) ou sessão Stripe real com chave. `enforceBilling` bloqueia inadimplentes no webhook WhatsApp (skip) e no `POST /messages` (402). Webhook Stripe sincroniza `Subscription`/`BillingHistory`.
+- **2FA**: `src/lib/auth/two-factor.ts` (TOTP + QR + 10 recovery codes hasheados, uso único). ADMIN/SUPER_ADMIN apenas; login aceita `recoveryCode`.
+- **LGPD**: `POST /api/account/data-export` (portabilidade) e `POST /api/account/data-deletion` (anonimização). Páginas públicas `/refund`, `/privacy` (2FA/LGPD).
+- **Rate limit**: `src/lib/rate-limit/with-rate-limit.ts` — `guardRateLimit` (api 60/min, webhook 300/min) aplicado ao webhook WhatsApp, `POST /messages` e checkout.
+- **Isolamento**: consultas sempre escopadas por `companyId` (`findFirst({ where: { id, companyId } })`); `validateFileAccess` exige mesmo `companyId` para ADMIN (corrige IDOR).
+- **Schema**: modelos `Plan`, `Subscription` (1:1 `Company`), `BillingHistory`, `Coupon`; `UserRole` += `SUPER_ADMIN`/`ATTENDANT`; `PlanType` += `FREE`/`ENTERPRISE`. Aplicar com `npx prisma db push --accept-data-loss` + `npx prisma generate`.
 
 ## Princípios de Design
 

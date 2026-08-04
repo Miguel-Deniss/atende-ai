@@ -1,9 +1,6 @@
-export async function chat(
-  messages: {
-    role: "system" | "user" | "assistant";
-    content: string;
-  }[]
-) {
+import type { LLMMessage } from "./types";
+
+export async function chat(messages: LLMMessage[]) {
   const payload: Record<string, unknown> = {
     model: "qwen3:8b",
     messages,

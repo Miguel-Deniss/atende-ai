@@ -19,6 +19,17 @@ export interface LimitCheck {
 }
 
 const planLimits: Record<string, PlanLimits> = {
+  FREE: {
+    maxUsers: 1,
+    maxClients: 20,
+    maxAppointments: 50,
+    maxConversations: 100,
+    maxUploads: 5,
+    maxStorageMB: 50,
+    maxApiKeys: 0,
+    maxAIMessages: 50,
+    features: ["basic_ai"],
+  },
   STARTER: {
     maxUsers: 3,
     maxClients: 100,
@@ -51,6 +62,17 @@ const planLimits: Record<string, PlanLimits> = {
     maxApiKeys: 20,
     maxAIMessages: 50000,
     features: ["advanced_ai", "whatsapp", "email_notifications", "advanced_reports", "api_access", "dedicated_support", "custom_integrations"],
+  },
+  ENTERPRISE: {
+    maxUsers: 99999,
+    maxClients: 999999,
+    maxAppointments: 999999,
+    maxConversations: 999999,
+    maxUploads: 9999,
+    maxStorageMB: 99999,
+    maxApiKeys: 999,
+    maxAIMessages: 999999,
+    features: ["advanced_ai", "whatsapp", "email_notifications", "advanced_reports", "api_access", "dedicated_support", "custom_integrations", "custom_models"],
   },
 };
 
@@ -121,8 +143,10 @@ export function getPlanFeatureList(planType: string): string[] {
 
 export function getPlanComparison(): Array<{ plan: string; label: string; limits: PlanLimits }> {
   return [
+    { plan: "FREE", label: "Gratuito", limits: planLimits.FREE },
     { plan: "STARTER", label: "Starter", limits: planLimits.STARTER },
     { plan: "PRO", label: "Profissional", limits: planLimits.PRO },
     { plan: "BUSINESS", label: "Business", limits: planLimits.BUSINESS },
+    { plan: "ENTERPRISE", label: "Enterprise", limits: planLimits.ENTERPRISE },
   ];
 }

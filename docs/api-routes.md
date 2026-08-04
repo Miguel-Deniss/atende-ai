@@ -12,24 +12,24 @@
 - **Autenticação**: public
 - **Funções**: `POST(request)`
 - **Fluxo**:
-  1. Parseia body com `loginSchema` (Zod)
+  1. Parseia body com `loginSchema` (Zod) — aceita `email`, `password`, `totpCode` e `recoveryCode` opcionais
   2. Extrai IP e User-Agent dos headers
   3. `checkLoginRateLimit` por IP — se excedido, retorna `rateLimitResponse`
   4. `findUnique` user por email — se não existir, log `LOGIN_FAILURE` + erro 401
   5. `verifyPassword` — se inválido, cria `LoginAttempt` (success:false), log `LOGIN_FAILURE`, erro 401
   6. Verifica `isActive` do usuário e `company.status !== "SUSPENDED"`
-  7. Se `user.twoFactorEnabled` e sem `totpCode` no body, retorna `requiresTwoFactor: true`
-  8. Se TOTP presente, `speakeasy.totp.verify` com window=1
+  7. Se `user.twoFactorEnabled` e sem `totpCode` nem `recoveryCode` no body, retorna `requiresTwoFactor: true`
+  8. Se 2FA: `verifyTotp(twoFactorSecret, totpCode)` (`src/lib/auth/two-factor.ts`); se TOTP falhar e houver `recoveryCode`, `verifyRecoveryCode` valida o hash SHA-256 e **consome o código** (remove o hash usado, atualiza `twoFactorRecoveryCodes` no user) + log `TWOFA_RECOVERY_USED` com quantos restam; nenhum válido → 401
   9. `setAuthCookies(userId, companyId, role, ip, userAgent)` — cria session + accessToken + refreshToken
   10. Atualiza `lastLoginAt` e `lastLoginIp` no user
   11. Cria `LoginAttempt` com success:true
   12. `resetLoginAttempts(ip)`
   13. Log `LOGIN_SUCCESS`
   14. Retorna `{ user: { id, name, email, role, companyId, companyName } }`
-- **Validação**: `loginSchema` (email, password, totpCode opcional)
-- **Dependências**: `prisma`, `verifyPassword`, `setAuthCookies`, `loginSchema`, `successResponse`/`errorResponse`/`rateLimitResponse`, `checkLoginRateLimit`/`getRateLimitHeaders`/`resetLoginAttempts`, `createLog`, `verifyToken`, `speakeasy`
+- **Validação**: `loginSchema` (email, password, totpCode opcional, recoveryCode opcional)
+- **Dependências**: `prisma`, `verifyPassword`, `setAuthCookies`, `loginSchema`, `successResponse`/`errorResponse`/`rateLimitResponse`, `checkLoginRateLimit`/`getRateLimitHeaders`/`resetLoginAttempts`, `createLog`, `verifyToken`, `verifyTotp`/`verifyRecoveryCode` (`src/lib/auth/two-factor.ts`)
 - **Problemas**: Nenhum reportado
-- **Observações**: Usa `rateLimitResponse` próprio com headers `Retry-After` e `X-RateLimit-*`. Anti-enumeration: mesma mensagem "Email ou senha inválidos" para email inexistente e senha errada.
+- **Observações**: Usa `rateLimitResponse` próprio com headers `Retry-After` e `X-RateLimit-*`. Anti-enumeration: mesma mensagem "Email ou senha inválidos" para email inexistente e senha errada. Códigos de recuperação são de uso único (hash consumido).
 
 ---
 
@@ -164,19 +164,21 @@
 #### `route.ts`
 - **Caminho**: `src/app/api/auth/2fa/setup/route.ts`
 - **Métodos HTTP**: `POST`
-- **Autenticação**: required + ADMIN role
+- **Autenticação**: required + ADMIN ou SUPER_ADMIN role
 - **Funções**: `POST()`
 - **Fluxo**:
   1. `getCurrentUser()` — 401 se não logado
-  2. Verifica `role === "ADMIN"` — 403 caso contrário
-  3. `speakeasy.generateSecret({ name: "AtendeAI:email" })`
-  4. Salva `twoFactorSecret` no user
-  5. Log `AI_CONFIG_CHANGE`
-  6. Retorna `{ secret, otpauth_url }`
+  2. Verifica `role === "ADMIN" || role === "SUPER_ADMIN"` — 403 caso contrário (ATTENDANT/FINANCIAL/EMPLOYEE não configuram 2FA)
+  3. `generateSecret(email)` (`src/lib/auth/two-factor.ts`) — segredo TOTP com label `AtendeAI:email`
+  4. `generateRecoveryCodes(10)` — 10 códigos `XXXXXX-XXXXXX-XXXXXX` (hex)
+  5. Salva `twoFactorSecret` (base32) e `twoFactorRecoveryCodes` (hash SHA-256 de cada código) no user
+  6. Log `TWOFA_SETUP`
+  7. Gera `qrCodeDataUrl` via pacote `qrcode` a partir do `otpauth_url`
+  8. Retorna `{ secret, otpauth_url, qrCodeDataUrl, recoveryCodes }` — códigos exibidos **uma única vez**
 - **Validação**: Nenhuma
-- **Dependências**: `getCurrentUser`, `prisma`, `successResponse`/`errorResponse`, `speakeasy`, `createLog`
+- **Dependências**: `getCurrentUser`, `prisma`, `successResponse`/`errorResponse`, `two-factor.ts` (`generateSecret`/`generateQrDataUrl`/`generateRecoveryCodes`/`hashRecoveryCodes`), `createLog`
 - **Problemas**: Nenhum reportado
-- **Observações**: Apenas ADMIN pode configurar 2FA. Secret é salvo antes da verificação (setup + verify em duas chamadas).
+- **Observações**: Secret é salvo antes da verificação (setup + verify em duas chamadas). Recovery codes são hasheados (SHA-256) no armazenamento — não são recuperáveis após a resposta.
 
 ---
 
@@ -189,11 +191,11 @@
   1. `getCurrentUser()` — 401 se não logado
   2. Extrai `token` do body, valida tamanho 6
   3. Busca `twoFactorSecret` do user no DB
-  4. `speakeasy.totp.verify({ secret, encoding: "base32", token, window: 1 })`
+  4. `verifyTotp(twoFactorSecret, token)` (`src/lib/auth/two-factor.ts`) — delega ao `speakeasy.totp.verify` com window=1
   5. Se válido, ativa `twoFactorEnabled: true`
-  6. Log `AI_CONFIG_CHANGE`
+  6. Log `TWOFA_VERIFY`
 - **Validação**: Manual (token length 6)
-- **Dependências**: `getCurrentUser`, `prisma`, `successResponse`/`errorResponse`, `speakeasy`, `createLog`
+- **Dependências**: `getCurrentUser`, `prisma`, `successResponse`/`errorResponse`, `verifyTotp`, `createLog`
 - **Problemas**: Nenhum reportado
 - **Observações**: Verifica o token contra o secret salvo no setup.
 
@@ -208,13 +210,13 @@
   1. `getCurrentUser()` — 401 se não logado
   2. Extrai `token` do body, valida tamanho 6
   3. Busca `twoFactorSecret` do user
-  4. `speakeasy.totp.verify` — se inválido, erro 400
-  5. Se válido, limpa `twoFactorEnabled: false` e `twoFactorSecret: null`
-  6. Log `AI_CONFIG_CHANGE`
+  4. `verifyTotp` — se inválido, erro 400
+  5. Se válido, limpa `twoFactorEnabled: false`, `twoFactorSecret: null` e `twoFactorRecoveryCodes: Prisma.JsonNull`
+  6. Log `TWOFA_DISABLE`
 - **Validação**: Manual (token length 6)
-- **Dependências**: `getCurrentUser`, `prisma`, `successResponse`/`errorResponse`, `speakeasy`, `createLog`
+- **Dependências**: `getCurrentUser`, `prisma`, `successResponse`/`errorResponse`, `verifyTotp`, `createLog`, `Prisma`
 - **Problemas**: Nenhum reportado
-- **Observações**: Exige o código TOTP atual para desabilitar (confirmação).
+- **Observações**: Exige o código TOTP atual para desabilitar (confirmação). Códigos de recuperação também são descartados.
 
 ---
 
@@ -272,8 +274,8 @@
 - **Fluxo (GET)**:
   1. `getCurrentUser()` — 401 se não logado
   2. `findMany` conversations por `companyId`, ordenado por `updatedAt desc`
-  3. Inclui última mensagem (`messages: { take: 1, orderBy: { createdAt: desc } }`)
-  4. Mapeia resultado com `id, phone, name, status, unread, lastMessage, lastMessageAt, createdAt, updatedAt, clientId`
+  3. Inclui última mensagem (`messages: { take: 1, orderBy: { createdAt: desc } }`) e `handledBy` (id, name)
+  4. Mapeia resultado com `id, phone, name, status, unread, lastMessage, lastMessageAt, createdAt, updatedAt, clientId, handledBy, handledAt`
 - **Fluxo (POST)**:
   1. `getCurrentUser()` — 401 se não logado
   2. Cria conversation com `companyId`, phone (default "cliente-teste"), name, status "OPEN", unread true
@@ -312,25 +314,71 @@
 - **Caminho**: `src/app/api/conversations/[id]/messages/route.ts`
 - **Métodos HTTP**: `GET`, `POST`
 - **Autenticação**: required
-- **Funções**: `GET(request, { params })`, `POST(request, { params })`, `isGarbageResponse(content)`
+- **Funções**: `GET(request, { params })`, `POST(request, { params })`
 - **Fluxo (GET)**:
   1. `getCurrentUser()` — 401 se não logado
-  2. Verifica conversation + companyId
+  2. `loadConversationContext(id, companyId)` — 404 se não encontrada
   3. `findMany` messages por `conversationId`, ordenadas ASC
+  4. Marca a conversa como lida (`unread: false`) e publica evento `conversation` (SSE)
 - **Fluxo (POST)**:
   1. `getCurrentUser()` — 401 se não logado
-  2. Verifica conversation + companyId — verifica se `aiConfig` existe
+  2. `loadConversationContext(id, companyId)` — 404 se não encontrada (expõe `handledById` e `phone`)
   3. Valida `body.content` (string)
-  4. Salva mensagem do usuário (role: "user")
-  5. Busca histórico (últimas 20 mensagens)
-  6. Filtra histórico removendo mensagens do assistente que são "garbage" (`isGarbageResponse`)
-  7. Chama `generateAIResponse(cleanHistory, company + aiConfig data)`
-  8. Verifica se resposta da IA é "garbage" — se for, erro 500
-  9. Salva resposta (role: "assistant")
+  4. Se a conversa foi **assumida por um humano** (`handledById` preenchido): salva a mensagem (role `assistant`) e `reply = body.content` — sem IA
+  5. Caso contrário: verifica `aiConfig` (400 se ausente) e chama `generateAIResponse({ conversationId, message, company, knownName })` — fachada que delega ao `conversation-manager.processMessage()`; o manager salva a mensagem do usuário, carrega/persiste o estado, detecta intenção, monta prompt, chama o LLM e aplica guardrails; se confirmado, persiste `Appointment`
+  6. Atualiza `lastMessage`/`lastMessageAt`/`unread: false`
+  7. Se a conversa tem `phone`, envia a resposta ao WhatsApp via `deliverWhatsAppMessage` (`src/lib/whatsapp/deliver.ts`) — busca `WhatsAppConfig` CONNECTED da empresa, descriptografa o token e chama a Graph API
+  8. Publica eventos `message` + `conversation` (SSE)
+  9. Retorna `{ role: "assistant", content, type, conversationId, handled }`
 - **Validação**: Manual (body.content string)
-- **Dependências**: `prisma`, `getCurrentUser`, `generateAIResponse`, `successResponse`/`errorResponse`/`unauthorizedResponse`/`notFoundResponse`
+- **Dependências**: `prisma`, `getCurrentUser`, `generateAIResponse`, `loadConversationContext`, `deliverWhatsAppMessage`, `publish` (`src/lib/realtime`), `successResponse`/`errorResponse`/`unauthorizedResponse`/`notFoundResponse`
 - **Problemas**: Nenhum reportado
-- **Observações**: `isGarbageResponse` detecta padrões como "sou um modelo de linguagem", "como uma ia", "meta", "llama". Histórico limpo é passado para a IA tanto para contexto quanto para a resposta.
+- **Observações**: O código controla o fluxo da conversa (state machine); a IA só gera texto. Em modo humano, a resposta é enviada direto ao WhatsApp sem passar pela IA. Erros de guardrails/agendamento retornam mensagens específicas (500).
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/conversations/[id]/takeover/route.ts`
+- **Métodos HTTP**: `POST`
+- **Autenticação**: required
+- **Funções**: `POST(request, { params })`
+- **Fluxo**:
+  1. `getCurrentUser()` — 401 se não logado
+  2. `findFirst` conversation por `id` + `companyId` — 404 se não encontrada
+  3. Atualiza `handledById: user.id` e `handledAt: new Date()`
+  4. Publica evento `conversation` (SSE)
+  5. Retorna `{ id, handledById, handledAt, handledBy: { id, name } }`
+- **Observações**: Com a conversa assumida, o webhook do WhatsApp passa a salvar as mensagens do cliente sem acionar a IA, e o painel responde diretamente (ver `messages/route.ts`).
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/conversations/[id]/release/route.ts`
+- **Métodos HTTP**: `POST`
+- **Autenticação**: required
+- **Funções**: `POST(request, { params })`
+- **Fluxo**:
+  1. `getCurrentUser()` — 401 se não logado
+  2. `findFirst` conversation por `id` + `companyId` — 404 se não encontrada
+  3. Atualiza `handledById: null` e `handledAt: null`
+  4. Publica evento `conversation` (SSE)
+  5. Retorna `{ id, handledById, handledAt, handledBy }`
+- **Observações**: Devolve a conversa ao fluxo automático da IA.
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/conversations/events/route.ts`
+- **Métodos HTTP**: `GET`
+- **Autenticação**: required
+- **Funções**: `GET(request)` — Server-Sent Events (SSE)
+- **Fluxo**:
+  1. `getCurrentUser()` — 401 se não logado
+  2. Cria `ReadableStream` com `Content-Type: text/event-stream`
+  3. Assina eventos do `src/lib/realtime` (EventEmitter) filtrados por `companyId`
+  4. Eventos nomeados: `ready` (na conexão), `heartbeat` (a cada 15s), `message` (`{ conversationId, role, content }`), `conversation` (`{ id }`)
+  5. Limpa a assinatura e fecha o stream em `abort`/`close`
+- **Observações**: Sem infraestrutura externa (Redis/WS) — SSE em memória no processo. Em múltiplas instâncias/deploy serverless, o cliente usa o polling de fallback da UI (20s). Headers `Cache-Control: no-cache` + `X-Accel-Buffering: no`.
 
 ---
 
@@ -545,23 +593,38 @@
 #### `route.ts`
 - **Caminho**: `src/app/api/webhooks/whatsapp/route.ts`
 - **Métodos HTTP**: `GET`, `POST`
-- **Autenticação**: public (validação via HMAC)
+- **Autenticação**: public (validação via HMAC com `META_APP_SECRET`)
 - **Funções**: `POST(request)`, `GET(request)`
 - **Fluxo (POST)**:
-  1. Lê body raw + header `x-hub-signature-256`
-  2. Se `webhookSecret` configurado e sem assinatura: log + erro 401
-  3. Se `webhookSecret` configurado e com assinatura: calcula HMAC-SHA256 do body, compara com `timingSafeEqual`
-  4. Parseia JSON
-  5. Log `WEBHOOK_RECEIVED`
-  6. Salva `WebhookEvent` no DB (provider: whatsapp, event, payload, signature, status: received)
+  1. `guardRateLimit(request, "webhook-whatsapp:<ip>", "webhook")` — limite de 300 req/min por IP; excedido → 429 (`src/lib/rate-limit/with-rate-limit.ts`)
+  2. Lê body raw + header `x-hub-signature-256`
+  3. Valida assinatura via `verifyMetaSignature` (`src/lib/whatsapp/verify-signature.ts`): HMAC-SHA256 do body com `META_APP_SECRET` comparado via `timingSafeEqual`; exige prefixo `sha256=`; inválida → 401
+  4. Parseia JSON e loga `WEBHOOK_RECEIVED`
+  5. Salva `WebhookEvent` no DB (provider: whatsapp, event, payload, signature, status: received)
+  6. Chama `processWhatsAppWebhook` (`src/lib/whatsapp/webhook.ts`):
+      - Extrai mensagens de texto (ignora `statuses`/delivery receipts e mídia)
+      - Descobre a empresa por `WhatsAppConfig.phoneNumberId` (`metadata.phone_number_id`, status `CONNECTED`); sem config → skip + log
+      - **`enforceBilling(config.companyId)`** — empresa inadimplente (status `PAST_DUE`/`CANCELED`/trial expirado): mensagem **ignorada** (skip), log `BILLING_BLOCKED`, sem IA e sem envio
+      - Get-or-create `Client` por `(companyId, phone)` via `findOrCreateWhatsAppClient`; `profile.name` → `Client.whatsappName`
+      - Busca `Conversation` aberta por `(companyId, clientId)` (fallback por phone); cria se não existir
+      - Reutiliza `loadConversationContext` + `processMessage` (ConversationManager) — WhatsApp é só canal de entrada/saída
+      - `knownName` = `profile.name` válido ou `null` (mantém `needsName` se ausente)
+      - Descriptografa o `accessToken` da config e envia a resposta via `sendWhatsAppMessage` (`src/lib/whatsapp/send-message.ts`) — `POST graph.facebook.com/v20.0/{phone_number_id}/messages` com o token da própria empresa
+      - Atualiza `lastMessage`/`lastMessageAt`/`unread`
+  7. Atualiza `WebhookEvent` para `processed` ou `failed` e retorna 200 sempre
 - **Fluxo (GET)**:
   1. Lê query params `hub.mode`, `hub.verify_token`, `hub.challenge`
-  2. Se `mode === "subscribe"` e token confere: retorna challenge
+  2. Se `mode === "subscribe"` e `verifyWebhookToken` confere (`META_WEBHOOK_VERIFY_TOKEN`): retorna challenge
   3. Caso contrário: 403
-- **Validação**: HMAC-SHA256 signature (condicional)
-- **Dependências**: `prisma`, `errorResponse`, `createLog`, `crypto`
+- **Validação**: HMAC-SHA256 com `META_APP_SECRET`; verify token com `META_WEBHOOK_VERIFY_TOKEN`
+- **Dependências**: `prisma`, `errorResponse`, `createLog`, `src/lib/whatsapp/*`, `src/lib/ai/*`
 - **Problemas**: Nenhum reportado
-- **Observações**: GET é usado pelo WhatsApp para verificação inicial do webhook. Assinatura é opcional se `WHATSAPP_WEBHOOK_SECRET` não configurado.
+- **Observações**: GET é usado pelo WhatsApp para verificação inicial do webhook. A resposta sempre é 200 para o Meta (que re-envia em não-200). O `accessToken` de cada empresa fica criptografado em `WhatsAppConfig` (nunca no `.env` nem no frontend).
+
+#### Conexão do WhatsApp (Settings)
+- **`POST /api/settings/whatsapp/connect`** — autenticado; recebe `{ phoneNumberId, businessAccountId, accessToken, phoneNumber }` (ex.: do Meta Embedded Signup); valida feature `whatsapp` do plano (403 se não tiver); salva `accessToken` criptografado (`src/lib/security/encryption.ts`) em `WhatsAppConfig` (upsert por `companyId`), status `CONNECTED`; loga `WHATSAPP_CONNECT`.
+- **`POST /api/settings/whatsapp/disconnect`** — autenticado; marca `WhatsAppConfig` da empresa como `DISCONNECTED`; loga `WHATSAPP_DISCONNECT`.
+- **`GET /api/settings/whatsapp/status`** — autenticado; retorna status/config da empresa **sem o accessToken**.
 
 ---
 
@@ -674,3 +737,137 @@
 - **Dependências**: `prisma`, `getCurrentUser`, `successResponse`/`errorResponse`/`unauthorizedResponse`/`forbiddenResponse`, `paginationSchema`
 - **Problemas**: Nenhum reportado (quase idêntico a admin/audit)
 - **Observações**: Muito similar a `admin/audit/route.ts`, mas com select diferente (não inclui role do user) e chave `logs` em vez de `auditLogs` na resposta.
+
+---
+
+## Billing (7 rotas) — fase SaaS
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/billing/plans/route.ts`
+- **Métodos HTTP**: `GET`
+- **Autenticação**: required (qualquer role)
+- **Funções**: `GET()`
+- **Fluxo**: `getCurrentUser()` (401) → `listActivePlans()` (`src/lib/billing/plans.ts`) → retorna planos ativos com `code, name, description, price (centavos), features, limits`
+- **Observações**: Planos: FREE (R$0), STARTER (R$59), PRO (R$119), BUSINESS (R$249), ENTERPRISE (R$599). Preços em centavos.
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/billing/checkout/route.ts`
+- **Métodos HTTP**: `POST`
+- **Autenticação**: required + permissão `company:manage_billing` (ADMIN/SUPER_ADMIN)
+- **Funções**: `POST(request)`
+- **Fluxo**:
+  1. `requirePermission("company:manage_billing")` — 401/403
+  2. `guardRateLimit(request, "checkout:<ip>")` — 60/min; excedido → 429
+  3. Parseia body com `checkoutSchema` (planCode, couponCode opcional, successUrl, cancelUrl)
+  4. `getPlanByCode` — 404 se plano inexistente ou inativo
+  5. Se `couponCode`: `validateCoupon` (`src/lib/billing/coupons.ts`) — inválido → 400
+  6. `computeDiscount(price, type, value)` → valor final
+  7. **Modo demo** (sem `STRIPE_SECRET_KEY`): `createOrUpdateSubscription` → assinatura local ACTIVE + log `SUBSCRIPTION_CREATED` + `BillingHistory` (`PAYMENT_SUCCESS`, metadata `{ mode: "demo" }`) + log `PAYMENT_SUCCESS`; retorna `{ demo: true, subscription }`
+  8. **Modo Stripe** (com chave): `createCheckoutSession` (`src/lib/billing/stripe.ts`) com price ID por env, metadata `companyId/planCode/couponCode`; grava assinatura local status `INCOMPLETE`; retorna `{ url }` do Stripe Checkout
+- **Validação**: `checkoutSchema`
+- **Dependências**: `requirePermission`, `prisma`, `src/lib/billing/{plans,coupons,subscription,stripe}.ts`, `guardRateLimit`, `createLog`
+- **Observações**: Cupons não usados em modo demo são contabilizados via `incrementCouponUsage`.
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/billing/coupons/validate/route.ts`
+- **Métodos HTTP**: `POST`
+- **Autenticação**: required
+- **Funções**: `POST(request)`
+- **Fluxo**: autentica → `validateCoupon(code, planCode)` → retorna `{ valid, reason?, coupon? }` ou 400 se inválido
+- **Observações**: Verifica inativo, expirado, esgotado (`maxUses`/`usedCount`) e `allowedPlans`.
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/admin/coupons/route.ts`
+- **Métodos HTTP**: `GET`, `POST`
+- **Autenticação**: required + SUPER_ADMIN (via `requireRole`)
+- **Fluxo (GET)**: lista cupons com paginação + filtro por status/código
+- **Fluxo (POST)**: `couponSchema` → cria cupom; log `COUPON_CREATE`
+- **Observações**: `code` normalizado em maiúsculas, unique.
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/admin/coupons/[id]/route.ts`
+- **Métodos HTTP**: `PATCH`, `DELETE`
+- **Autenticação**: required + SUPER_ADMIN
+- **Fluxo**: `PATCH` atualiza campos (ativo/desconto/limites) com `couponSchema.partial()`, log `COUPON_UPDATE`; `DELETE` remove + log `COUPON_DELETE`
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/admin/billing/route.ts`
+- **Métodos HTTP**: `GET`
+- **Autenticação**: required + SUPER_ADMIN
+- **Fluxo**: totais (clientes/cobranças ativas, MRR), distribuição por plano/status, últimas 50 transações (`BillingHistory`)
+- **Observações**: Dashboard financeiro global da plataforma.
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/webhooks/stripe/route.ts`
+- **Métodos HTTP**: `POST`
+- **Autenticação**: public (validação via `stripe-signature`)
+- **Fluxo**:
+  1. `constructEvent` com `STRIPE_WEBHOOK_SECRET` — inválido → 400
+  2. **checkout.session.completed**: `syncSubscriptionRow` (`src/lib/billing/subscription.ts`) grava/atualiza `Subscription` (upsert por companyId) + atualiza `Company.planType/subscriptionStatus` + log `PLAN_CHANGE`
+  3. **customer.subscription.updated/deleted**: mapeia status Stripe → `Subscription.status` (active→ACTIVE, past_due→PAST_DUE, canceled/unpaid→CANCELED...)
+  4. **invoice.paid**: `recordBilling` (`BillingHistory`) + log `PAYMENT_SUCCESS`
+  5. **invoice.payment_failed**: grava `PAST_DUE` + log `PAYMENT_FAILURE`
+- **Observações**: `src/lib/billing/subscription.ts` é a fonte de verdade (com fallback em `Company.planType/subscriptionStatus`).
+
+---
+
+## Company Users (2 rotas) — fase SaaS
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/company/users/route.ts`
+- **Métodos HTTP**: `GET`, `POST`
+- **Autenticação**: required + permissão `company:manage_users` (ADMIN/SUPER_ADMIN)
+- **Fluxo (GET)**: lista usuários ativos da empresa
+- **Fluxo (POST)**: `createUserSchema` (name, email, password, role) → role restrita a `ATTENDANT`/`EMPLOYEE`/`FINANCIAL` (nunca cria admin); `hashPassword`; `checkUserLimit` por plano (FREE = 1 usuário) → 402 se excedido; log `USER_CREATE`
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/company/users/[id]/route.ts`
+- **Métodos HTTP**: `PATCH`, `DELETE`
+- **Autenticação**: required + permissão `company:manage_users`
+- **Fluxo (PATCH)**: `updateUserSchema` → altera role/ativo; log `USER_UPDATE`
+- **Fluxo (DELETE)**: revoga sessions + soft-delete; log `DATA_DELETE`
+- **Observações**: Proteção: não edita/exclui `SUPER_ADMIN` nem a si mesmo.
+
+---
+
+## LGPD (2 rotas) — fase SaaS
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/account/data-export/route.ts`
+- **Métodos HTTP**: `POST`
+- **Autenticação**: required + permissão `company:export_data` (ADMIN/SUPER_ADMIN)
+- **Fluxo**: `dataExportScopeSchema` (scope: all/clients/appointments/conversations) → monta payload JSON (empresa, clientes, agendamentos, conversas+mensagens; em `all` também usuários, settings, aiConfig, últimos 200 auditLogs) → log `DATA_EXPORT` → retorna `{ data }`
+- **Observações**: Atende direito de portabilidade (Art. 18, V LGPD).
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/account/data-deletion/route.ts`
+- **Métodos HTTP**: `POST`
+- **Autenticação**: required + permissão `company:export_data`
+- **Fluxo**: anonimiza em massa por `companyId`:
+  - `Client`: name → "Usuário removido (LGPD)", phone "(removido)", email/whatsappName/notes null
+  - `Appointment`: name anonimizado
+  - `Conversation`: phone "(removido)", name anonimizado, `deletedAt: now`
+  → log `DATA_DELETE`; retorna `{ affected: { clients, appointments, conversations } }`
+- **Observações**: Atende direito de eliminação (Art. 18, VI LGPD). Operacionalização por anonimização para preservar integridade referencial.

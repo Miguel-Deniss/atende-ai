@@ -1,5 +1,5 @@
 npm run dev
-�ÃO TÉCNICA COMPLETA - AtendeAI
+�ÃO TÉCNICA COMPLETA - AtendeAI
 
 ---
 
@@ -32,7 +32,7 @@ Pequenas empresas (barbearias, salões, clínicas) têm dificuldade em atender t
 | **jsonwebtoken / jose** | 9.0.3 / 6.2.4 | JWT (servidor / edge) |
 | **Speakeasy** | 2.0.0 | TOTP 2FA |
 | **Stripe** | 22.3.2 | Pagamentos |
-| **Ollama** | 0.6.3 | LLM local (llama3.2) |
+| **Ollama** | 0.6.3 | LLM local (qwen3:8b) |
 | **Docker** | - | Containerização |
 | **Helmet** | 8.3.0 | Segurança headers |
 | **Sharp** | 0.35.3 | Processamento de imagens |
@@ -1211,38 +1211,27 @@ API Route: conversations/[id]/messages/route.ts (POST)
     │
     ├── 1. getCurrentUser() → valida sessão (cookies JWT)
     │
-    ├── 2. Busca conversa + empresa + aiConfig + services + faq (Prisma)
+    ├── 2. loadConversationContext(id, companyId) → conversa + empresa + aiConfig + services + faq + knownName
     │
-    ├── 3. Salva mensagem do usuário no banco (role: "user")
+    ├── 3. Valida corpo (content string) e aiConfig
     │
-    ├── 4. Busca histórico (últimas 20 mensagens)
-    │
-    ├── 5. Filtra histórico: remove respostas "lixo" (isGarbageResponse)
-    │
-    ├── 6. Chama generateAIResponse(cleanHistory, companyContext)
+    ├── 4. Chama generateAIResponse({ conversationId, message, company, knownName })
     │      │
-    │      ├── assistant.ts:
-    │      │   ├── buildSystemPrompt() → monta system prompt compacto
-    │      │   ├── slice(-6) das mensagens
-    │      │   └── monta array: [system, ...messages]
-    │      │
-    │      └── provider.ts:
-    │          ├── Monta payload: { model, messages, options }
-    │          └── POST http://localhost:11434/api/chat
-    │             │
-    │             ▼
-    │          Ollama (llama3.2) processa
-    │             │
-    │             ▼
-    │          Retorna { message: { content }, done_reason }
+    │      └── assistant.ts (fachada) → conversation-manager.processMessage()
+    │          │
+    │          ├── Salva mensagem do usuário no banco (role: "user")
+    │          ├── Carrega estado salvo (coluna `state` da Conversation)
+    │          ├── detectIntent() → intenção (appointment/service/faq/human/none/other)
+    │          ├── extractSlots() → serviço, data, hora, nome
+    │          ├── computeAppointmentStep() → próximo passo (state machine)
+    │          ├── buildPrompt() → system + estado + contexto + últimas 3 mensagens
+    │          ├── provider.chat() → POST http://localhost:11434/api/chat (qwen3:8b)
+    │          ├── guardrails: isGarbageResponse + containsInventedInfo
+    │          ├── Se confirmado → persistAppointment() (resolve data + salva Appointment)
+    │          ├── Salva resposta da IA (role: "assistant")
+    │          └── Salva novo estado na conversa
     │
-    ├── 7. Verifica resposta vazia (fallback)
-    │
-    ├── 8. Verifica isGarbageResponse → se lixo, retorna 500
-    │
-    ├── 9. Salva resposta da IA no banco (role: "assistant")
-    │
-    └── 10. Retorna mensagem salva ao frontend
+    └── Retorna { role: "assistant", content } ao frontend
 ```
 
 ### 4.2 Fluxo de Autenticação
@@ -1352,9 +1341,13 @@ API Route: auth/register/route.ts
 - `id`, `question`, `answer`, `aiConfigId` (FK → AIConfig)
 
 #### `Client` (tabela: `clients`)
-- `id`, `name`, `phone`, `email?`, `lastService?`, `date`, `status`, `notes?`, `deletedAt`
+- `id`, `name`, `phone`, `email?`, `whatsappName?`, `lastService?`, `date`, `status`, `notes?`, `deletedAt`
 - `companyId` (FK)
 - **Índices**: `[companyId]`, `[phone]`, `[name]`
+
+#### `WhatsAppConfig` (tabela: `whatsapp_configs`)
+- `id`, `companyId` (unique FK → Company), `phoneNumberId`, `businessAccountId`, `accessToken` (criptografado), `phoneNumber`, `status` (CONNECTED/DISCONNECTED), `createdAt`, `updatedAt`
+- **Índices**: `[phoneNumberId]`
 
 #### `Appointment` (tabela: `appointments`)
 - `id`, `time` (string), `date` (DateTime), `name`, `service`, `status`, `deletedAt`
@@ -1363,9 +1356,9 @@ API Route: auth/register/route.ts
 
 #### `Conversation` (tabela: `conversations`)
 - `id`, `phone`, `name?`, `status` (default "OPEN"), `unread`, `lastMessage?`, `lastMessageAt?`, `deletedAt`
-- `companyId` (FK), `clientId?` (FK → Client)
-- **Índices**: `[companyId]`, `[status]`, `[phone]`
-- **Relações**: messages[]
+- `companyId` (FK), `clientId?` (FK → Client), `handledById?` (FK → User), `handledAt?` (takeover manual)
+- **Índices**: `[companyId]`, `[status]`, `[phone]`, `[handledById]`
+- **Relações**: messages[], handledBy (User)
 
 #### `Message` (tabela: `messages`)
 - `id`, `role` (string: "user" | "assistant"), `content`, `type` (default "text"), `createdAt`
@@ -1385,7 +1378,8 @@ API Route: auth/register/route.ts
 - `companyId` (FK)
 
 #### `WebhookEvent` (tabela: `webhook_events`)
-- `id`, `provider`, `event`, `payload` (Json), `signature?`, `status`, `processedAt?`, `error?`, `createdAt`
+- `id`, `provider`, `event`, `payload` (Json), `signature?`, `status`, `processedAt?`, `error?`, `companyId?`, `createdAt`
+- `status`: `received` → `processed` | `failed`
 
 ---
 
@@ -1419,19 +1413,28 @@ API Route: auth/register/route.ts
 - `hashPassword()` → bcrypt 12 rounds
 - `verifyPassword()` → compara segura
 
-### 6.5 2FA (TOTP)
+### 6.5 2FA (TOTP + Recovery Codes)
 
-- **Setup**: Gera secret via `speakeasy`, armazena `base32`, retorna `otpauth://` URL
-- **Verify**: Verifica código de 6 dígitos
-- **Disable**: Verifica TOTP, depois desativa
+- **Lib**: `src/lib/auth/two-factor.ts` — `generateSecret`, `verifyTotp` (TOTP 6 dígitos, window=1), `generateQrDataUrl` (pacote `qrcode`), `generateRecoveryCodes(10)` (formato `XXXXXX-XXXXXX-XXXXXX` hex), `hashRecoveryCodes` (SHA-256), `verifyRecoveryCode` (valida e **consome** o hash — uso único).
+- **Setup** (`POST /api/auth/2fa/setup`): ADMIN/SUPER_ADMIN apenas; gera secret + 10 recovery codes (hashados no DB); retorna `{ secret, otpauth_url, qrCodeDataUrl, recoveryCodes }` exibidos uma única vez; log `TWOFA_SETUP`.
+- **Verify** (`POST /api/auth/2fa/verify`): `verifyTotp`; ativa `twoFactorEnabled`; log `TWOFA_VERIFY`.
+- **Disable** (`POST /api/auth/2fa/disable`): exige TOTP atual; limpa secret + códigos (`Prisma.JsonNull`); log `TWOFA_DISABLE`.
+- **Login**: `POST /api/auth/login` aceita `recoveryCode` — valida contra hash, remove o código usado, log `TWOFA_RECOVERY_USED`. Se só `totpCode`/`recoveryCode` ausentes → `requiresTwoFactor: true`.
 
 ### 6.6 RBAC
 
+- **Lib**: `src/lib/auth/permissions.ts` — `Permission` (11 permissões `company:*` + `platform:manage_all`), `ROLE_HIERARCHY`, matriz `ROLE_PERMISSIONS`, helpers `can`/`authorize`/`isSuperAdmin`/`isCompanyAdmin`/`roleAtLeast`.
+- **API**: `src/lib/auth/api-guard.ts` — `requireAuth` (valida `company.status === "ACTIVE"`), `requireRole`, `requirePermission`.
+
 | Papel | Permissões |
-|---|---|---|
-| `ADMIN` | Acesso total + admin panel |
-| `EMPLOYEE` | Dashboard, conversas, clientes, agenda |
-| `FINANCIAL` | Planos, pagamentos, relatórios |
+|---|---|
+| `SUPER_ADMIN` | Tudo (`platform:manage_all`) + permissões de ADMIN; acesso global (`/admin/*`) |
+| `ADMIN` | Gestão completa da própria empresa (usuários, whatsapp, IA, billing, exportar dados) |
+| `FINANCIAL` | Métricas + billing (`company:view_metrics`, `company:manage_billing`) |
+| `EMPLOYEE` | Conversas, clientes, agenda (view/respond, view_clients) |
+| `ATTENDANT` | Conversas, clientes, agenda (view/respond, view_clients) |
+
+- **Criação de usuário** (`POST /api/company/users`): roles permitidas `ATTENDANT`/`EMPLOYEE`/`FINANCIAL`; limite por plano via `checkUserLimit`.
 
 ### 6.7 `session.ts`
 
@@ -1676,9 +1679,9 @@ API Route: auth/register/route.ts
 - **Caminho**: `src/app/api/conversations/[id]/messages/route.ts`
 - **Método**: GET, POST
 - **Responsabilidade**: Mensagens da conversa + geração de resposta IA.
-- **GET**: Lista mensagens (ordenadas por timestamp).
-- **POST**: Recebe `{ content }`, salva mensagem do usuário, chama `generateAIResponse()` (service.ts), salva resposta da IA, retorna ambas.
-- **Dependências**: `@/lib/ai/service`, `@/lib/tenant/guard`, `@prisma/client`.
+- **GET**: Lista mensagens (ordenadas por data) e marca a conversa como lida (`unread: false`).
+- **POST**: Recebe `{ content }`, carrega contexto via `loadConversationContext`. Se a conversa foi **assumida** (`handledById`), salva a mensagem e responde direto (sem IA); caso contrário chama `generateAIResponse()` (fachada → ConversationManager), que salva as mensagens, o estado e (se confirmado) o agendamento. Atualiza `lastMessage`/`unread`, envia a resposta ao WhatsApp via `deliverWhatsAppMessage` (se a conversa tem telefone) e publica eventos SSE. Erros de IA/agendamento retornam mensagens específicas.
+- **Dependências**: `@/lib/ai/assistant`, `@/lib/ai/context-loader`, `@/lib/whatsapp/deliver`, `@/lib/realtime`, `@/lib/db/prisma`.
 
 #### `schedule/route.ts`
 - **Caminho**: `src/app/api/schedule/route.ts`
@@ -1771,10 +1774,17 @@ API Route: auth/register/route.ts
 #### `webhooks/whatsapp/route.ts`
 - **Caminho**: `src/app/api/webhooks/whatsapp/route.ts`
 - **Método**: GET, POST
-- **Responsabilidade**: Webhook WhatsApp (para futuro provider WhatsApp).
-- **GET**: Verificação de webhook (challenge).
-- **POST**: Receber mensagens WhatsApp e rotear para IA.
-- **Observações**: Funcionalidade não completa — provider WhatsApp não integrado.
+- **Responsabilidade**: Webhook WhatsApp (Meta Cloud API) — integração completa multi-tenant.
+- **GET**: Verificação de webhook (challenge: `hub.mode=subscribe` + `hub.verify_token` via `META_WEBHOOK_VERIFY_TOKEN`).
+- **POST**: Valida assinatura HMAC (`verifyMetaSignature` com `META_APP_SECRET`), salva `WebhookEvent`, chama `processWhatsAppWebhook`.
+- **Fluxo**: extrai mensagens de texto → descobre empresa por `WhatsAppConfig.phoneNumberId` (status `CONNECTED`) → get-or-create `Client` por telefone (`profile.name` → `whatsappName`) → busca/cria `Conversation` → se assumida por humano, salva a mensagem e **não responde** (handled) → senão `loadConversationContext` + `processMessage` → descriptografa `accessToken` e `sendWhatsAppMessage` (Meta) → atualiza conversa e publica eventos SSE → `WebhookEvent` vira `processed`/`failed` e retorna 200.
+- **Dependências**: `src/lib/whatsapp/*` (`types`, `verify-signature`, `send-message`, `client`, `webhook`), `src/lib/ai/*`, `src/lib/security/encryption`, `prisma`.
+- **Observações**: Sempre responde 200 para o Meta (re-envia em não-200). Cada empresa usa o próprio `phoneNumberId` + `accessToken` (criptografado em `WhatsAppConfig`).
+
+#### Conexão WhatsApp (Settings)
+- **`POST /api/settings/whatsapp/connect`** — autenticado; `{ phoneNumberId, businessAccountId, accessToken, phoneNumber }`; valida feature `whatsapp` do plano; upsert `WhatsAppConfig` (token criptografado), status `CONNECTED`; log `WHATSAPP_CONNECT`.
+- **`POST /api/settings/whatsapp/disconnect`** — autenticado; status `DISCONNECTED`; log `WHATSAPP_DISCONNECT`.
+- **`GET /api/settings/whatsapp/status`** — autenticado; retorna config **sem accessToken**.
 
 #### `health/route.ts`
 - **Caminho**: `src/app/api/health/route.ts`
@@ -1792,32 +1802,107 @@ API Route: auth/register/route.ts
 
 ## 8. SISTEMA DE IA (COMPLETO)
 
+### Arquitetura em Camadas
+
+O sistema de IA usa um **Conversation Manager**: o código controla o fluxo do diálogo (state machine + slot filling) e a IA apenas gera texto. Os módulos são:
+
+```
+assistant.ts (fachada pública)
+    └── conversation-manager.ts (orquestrador)
+        ├── intention-detector.ts   (detecta intenção)
+        ├── slot-extractor.ts       (extrai slots: serviço/data/hora/nome)
+        ├── flows/appointment.ts    (máquina de estados do agendamento)
+        ├── prompt-builder.ts       (monta o prompt conforme o estado)
+        ├── conversation-state.ts   (persistência do estado)
+        ├── guardrails.ts           (lixo + informação inventada)
+        ├── appointment-date.ts     (resolve datas em Date)
+        └── provider.ts             (chamada HTTP ao Ollama)
+```
+
 ### 8.1 Provider (`src/lib/ai/provider.ts`)
 
 - **Endpoint**: `POST http://localhost:11434/api/chat`
+- **Modelo**: `qwen3:8b`
 - **Payload**:
   ```json
   {
-    "model": "llama3.2",
+    "model": "qwen3:8b",
     "messages": [...],
     "stream": false,
+    "think": false,
     "options": {
-      "temperature": 0.1,
-      "num_predict": 512,
-      "num_ctx": 8192,
+      "temperature": 0.2,
+      "top_p": 0.9,
       "repeat_penalty": 1.1,
-      "top_p": 0.9
+      "num_ctx": 8192,
+      "num_predict": 512
     }
   }
   ```
-- **Tratamento**: HTTP error, `done_reason: "stop"` vazio, conteúdo vazio
+- **Tratamento**: HTTP error, `eval_count` baixo, `done_reason: "stop"` vazio, conteúdo vazio
 
 ### 8.2 Assistant (`src/lib/ai/assistant.ts`)
 
-- **`buildSystemPrompt(company)`**: Monta system prompt compacto com dados da empresa
-- **`generateAIResponse(messages, company)`**: Filtra vazias, slice(-6), monta array [system + histório], chama provider
+- **Fachada pública** do sistema de IA.
+- **`generateAIResponse(input)`**: Recebe `{ conversationId, message, company, knownName, deps?, intentFallback? }` e delega ao `processMessage` do ConversationManager (usando `createDefaultDeps()` quando nenhuma deps é injetada). Retorna `{ response, state, appointmentPersisted }`.
+- **Tipos**: `GenerateAIInput`, `ConversationManagerDeps` (injetáveis para testes).
 
-### 8.3 Proteção Contra Respostas Ruins
+### 8.3 Conversation Manager (`src/lib/ai/conversation-manager.ts`)
+
+- **`processMessage(input)`**: Orquestra o diálogo de ponta a ponta:
+  1. Salva a mensagem do usuário (`role: "user"`)
+  2. Carrega o estado atual da conversa
+  3. `detectIntent()` → intenção
+  4. `extractSlots()` → slots (com merge que reseta data/hora se o serviço mudar)
+  5. `computeAppointmentStep()` → próximo passo (idle, waiting_service, waiting_date, waiting_time, waiting_name, confirming, finished)
+  6. `buildPrompt()` → system + estado + contexto + últimas 3 mensagens
+  7. `provider.chat()` → LLM
+  8. Guardrails: rejeita resposta lixo ou com informação inventada
+  9. Se confirmado e com deps de persistência → cria `Appointment`
+  10. Salva resposta (`role: "assistant"`) + novo estado
+- **`createDefaultDeps()`**: Constrói as dependências reais (Prisma + Ollama), incluindo `persistAppointment` que resolve a data via `appointment-date` e registra auditoria (`AI_APPOINTMENT_CREATE`).
+- **Injeção de dependências**: `ConversationManagerDeps` (llm, loadState, saveState, saveMessage, loadRecentMessages, persistAppointment opcional) permite testar com LLM fake.
+
+### 8.4 Intention Detector (`src/lib/ai/intention-detector.ts`)
+
+- **`detectIntentSync(message)`**: Detecção determinística por palavras-chave.
+- **`detectIntent(message, state, { fallback })`**: Usa o sync e, se a confiança for baixa, chama o LLM (fallback) que retorna JSON.
+- **`parseConfirmation(message)`**: Interpreta "sim"/"não"/outro.
+- **Intenções**: `none` (saudação/outros), `appointment` (agendamento), `service` (pedido de preço), `faq` (perguntas gerais), `human` (falar com atendente), `other` (ex: cancelamento).
+
+### 8.5 Slot Extractor (`src/lib/ai/slot-extractor.ts`)
+
+- **`extractSlots(message, state, company)`**: Extrai em paralelo serviço (match com cadastro), data (hoje/amanhã/ISO/dia da semana), hora (HH:mm) e nome.
+- **`extractService/extractDate/extractTime/extractName`**: Funções individuais e testáveis.
+- **Observação**: Nome só é extraído em padrões explícitos ("meu nome é...") ou quando o passo atual é `waiting_name`.
+
+### 8.6 Flow de Agendamento (`src/lib/ai/flows/appointment.ts`)
+
+- **`computeAppointmentStep(slots, needsName)`**: Define o próximo passo segundo a ordem: serviço → data → hora → nome (se necessário) → confirmando → finalizado.
+- **`mergeSlots(current, extracted)`**: Mescla slots com resets em cascata (mudou serviço → zera data/hora; mudou data → zera hora).
+
+### 8.7 Prompt Builder (`src/lib/ai/prompt-builder.ts`)
+
+- **`buildPrompt({ state, company, history })`**: Monta o system prompt dinâmico com:
+  - Estado atual (intenção, passo, slots) — a IA sabe o que foi coletado e o objetivo
+  - Dados da empresa (serviços com preço, FAQ, instruções, personalidade)
+  - Últimas 3 mensagens como histórico curto
+- **`objectiveFor(step)`**: Traduz cada passo em um objetivo ("pergunte qual serviço", "pergunte a data"...).
+- **Observação**: O prompt muda conforme o estado — a IA nunca decide o próximo passo sozinha.
+
+### 8.8 Conversation State (`src/lib/ai/conversation-state.ts`)
+
+- **`loadConversationState(conversationId)`**: Lê a coluna `state` (Json) da `Conversation`; retorna estado default se vazio/inválido.
+- **`saveConversationState(conversationId, state)`**: Valida com Zod e salva o estado.
+- **`clearConversationState(conversationId)`**: Grava `Prisma.DbNull`.
+- **Observação**: O estado é a memória primária do diálogo; o histórico curto é apenas contexto auxiliar.
+
+### 8.9 Context Loader (`src/lib/ai/context-loader.ts`)
+
+- **`loadConversationContext(conversationId, companyId)`**: Busca a conversa (validando a empresa), monta `CompanyContext` (com `aiConfig`, services, faq) e retorna `knownName` (nome do cliente vinculado, se houver).
+- **Uso**: Rota `POST /api/conversations/[id]/messages` (substitui a duplicação de consultas GET/POST).
+
+### 8.10 Guardrails (`src/lib/ai/guardrails.ts`)
 
 `isGarbageResponse()` detecta padrões:
 ```
@@ -1830,69 +1915,20 @@ API Route: auth/register/route.ts
 /llama/i
 ```
 
-**Antes**: Filtra lixo do histórico
-**Depois**: Bloqueia salvar lixo no banco
+`containsInventedInfo()` detecta: serviços fora do cadastro, produtos, funcionários, pagamentos e dados que a empresa não cadastrou.
 
-### 8.4 `service.ts`
+**Uso**: A resposta da IA é validada antes de ser salva; lixo ou informação inventada → erro (a mensagem não é salva).
 
-- **Caminho**: `src/lib/ai/service.ts`
-- **Responsabilidade**: Orquestração completa do fluxo de IA: busca contexto, monta mensagens, gera resposta, salva.
-- **Funções**:
-  - `generateAIResponse(companyId: string, conversationId: string, messageContent: string)` — Função principal: busca company com aiConfig/services/FAQ, busca histórico da conversa, filtra garbage, chama `generateFromProvider` com `buildSystemPrompt + histórico + lastUserMessage`.
-  - `generateFromProvider(conversation: ConversationWithMessages, company: CompanyWithAI)` — Monta payload do provider: valida empresa ativa, limites do plano, contexto, mensagens. Chama `generateCompletion()` do provider. Registra métricas (latência, tokens, modelo).
-  - `generateWelcomeMessage(company: CompanyWithAI, clientName?: string)` — Mensagem de boas-vindas para novos contatos.
-- **Dependências**: `@/lib/ai/provider`, `@/lib/ai/types`, `@/lib/ai/context`, `@/lib/ai/templates`, `@/lib/ai/metrics`, `@/lib/ai/memory`, `@/lib/logger/structured`, `@prisma/client`.
-- **Fluxo**: Recebe companyId + conversationId + message → busca dados → valida → constrói contexto (services, FAQ, regras, personalidade) → chama LLM → verifica garbage → salva resposta → registra métricas → retorna.
+### 8.11 Format / Text / Appointment Date
 
-### 8.5 `context.ts`
+- **`format.ts`**: `listServices()` e `listFAQ()` — formatação compartilhada das listas para o prompt.
+- **`text.ts`**: `normalizeText()` (remove acentos/CAIXA) e `escapeRegExp()`.
+- **`appointment-date.ts`**: `resolveAppointmentDate(raw, base?)` converte as datas livres dos slots ("hoje", "amanhã", "depois de amanhã", ISO, "dia N", dia da semana) em `Date` real.
 
-- **Caminho**: `src/lib/ai/context.ts`
-- **Responsabilidade**: Compilação do contexto da empresa para o prompt do sistema.
-- **Funções**:
-  - `buildCompanyContext(company: CompanyWithRelations)` — Monta objeto com: nome, descrição, serviços (nome + preço + duração), FAQ (perguntas + respostas), regras de atendimento, personalidade do assistente, horário de funcionamento.
-  - `formatContextForPrompt(context)` — Serializa o contexto em texto estruturado para o system prompt.
-- **Dependências**: `@/lib/ai/types`.
-- **Observações**: Contexto é montado a cada requisição (sem cache). Pode ser custoso para empresas com muitos serviços/FAQ.
+### 8.12 Types (`src/lib/ai/types.ts`)
 
-### 8.6 `templates.ts`
-
-- **Caminho**: `src/lib/ai/templates.ts`
-- **Responsabilidade**: Templates de prompt para diferentes situações.
-- **Exports**:
-  - `WELCOME_TEMPLATE` — Template de boas-vindas: "Olá! Eu sou o assistente virtual da {companyName}..."
-  - `GREETING_TEMPLATE` — Template de saudação inicial.
-  - `APPOINTMENT_CONFIRMATION_TEMPLATE` — Template para confirmar agendamento.
-  - `APPOINTMENT_REMINDER_TEMPLATE` — Template para lembrete.
-  - `FALLBACK_TEMPLATE` — "Não entendi, pode reformular?"
-  - `HUMAN_TRANSFER_TEMPLATE` — "Vou transferir para um atendente."
-- **Observações**: Templates usam placeholders `{companyName}`, `{clientName}`, `{service}`, `{date}`, `{time}`.
-
-### 8.7 `memory.ts`
-
-- **Caminho**: `src/lib/ai/memory.ts`
-- **Responsabilidade**: Memória de curto prazo para manter estado entre mensagens.
-- **Funções**:
-  - `getConversationMemory(conversationId: string)` — Recupera memória da conversa (últimas N interações resumidas).
-  - `updateConversationMemory(conversationId: string, summary: string)` — Atualiza resumo da conversa.
-  - `clearConversationMemory(conversationId: string)` — Limpa memória.
-- **Dependências**: `@/lib/ai/types`.
-- **Observações**: Implementação em memória (não ideal para produção). Deve ser migrado para Redis ou banco.
-
-### 8.8 `metrics.ts`
-
-- **Caminho**: `src/lib/ai/metrics.ts`
-- **Responsabilidade**: Coleta de métricas de uso da IA.
-- **Funções**:
-  - `recordAIMetrics(companyId, conversationId, model, tokensIn, tokensOut, latencyMs, wasGarbage)` — Registra métricas no banco (tabela `ai_metrics` ou similar).
-  - `getAIUsageStats(companyId, period)` — Retorna estatísticas de uso (total de requisições, tokens, média latência).
-- **Dependências**: `@prisma/client`, `@/lib/logger/structured`.
-
-### 8.9 `types.ts`
-
-- **Caminho**: `src/lib/ai/types.ts`
-- **Responsabilidade**: Tipos do sistema de IA.
-- **Exports**: `AIProvider` (ollama | openai), `AIMessage` (role, content, timestamp), `AIRequest`, `AIResponse`, `AIError`, `CompanyContext`, `AIConfig`, `ConversationMemory`, `AIUsageStats`.
-- **Observações**: Interface `AIConfig` inclui: `model`, `temperature`, `maxTokens`, `systemPrompt`, `provider`, `isActive`.
+- **Exports**: `ConversationStep`, `ConversationIntent`, `ConversationSlots`, `ConversationState`, `AIMessage`, `LLMMessage`, `CompanyContext`, `defaultConversationState()`, `parseConversationState()` + schemas Zod (`conversationStateSchema`, `conversationSlotsSchema`).
+- **Passos**: `idle`, `waiting_name`, `waiting_service`, `waiting_date`, `waiting_time`, `confirming`, `finished`.
 
 ---
 
@@ -2055,17 +2091,68 @@ Além dos módulos de Auth (seção 6) e IA (seção 8), os seguintes arquivos `
   - `generateSlug(text)` — Gera slug URL-friendly.
   - `truncate(str, length)` — Trunca string com "...".
   - `sleep(ms)` — Promise que resolve após ms.
-  - `isValidEmail(email)` — Regex validação de email.
-  - `isValidPhone(phone)` — Regex para telefone BR.
-- **Dependências**: `clsx`, `tailwind-merge`.
 
-### 9.18 Produção (28 pacotes)
+### 9.18 `src/lib/whatsapp/` (integração WhatsApp — Meta Cloud API)
+
+Módulo multi-tenant que integra o AtendeAI ao WhatsApp. Cada empresa conecta o próprio WhatsApp Business via `WhatsAppConfig` (token criptografado no banco):
+
+- **`types.ts`** — Tipagens do payload do webhook da Meta (`WhatsAppWebhookPayload`, `entry[].changes[].value.messages[]`, `contacts[].profile.name`, `metadata.phone_number_id`, `statuses[]`, `IncomingWhatsAppMessage`).
+- **`verify-signature.ts`** — `verifyMetaSignature(body, signature)`: HMAC-SHA256 com `META_APP_SECRET` via `timingSafeEqual`; exige prefixo `sha256=`. `verifyWebhookToken(token)`: compara com `META_WEBHOOK_VERIFY_TOKEN`.
+- **`send-message.ts`** — `sendWhatsAppMessage({ phoneNumberId, accessToken, to, message })`: `POST https://graph.facebook.com/v20.0/{phone_number_id}/messages` (Bearer do token da empresa).
+- **`client.ts`** — `findOrCreateWhatsAppClient(companyId, phone, whatsappName?)`: get-or-create `Client` por telefone; `profile.name` → `Client.whatsappName` (atualiza se mudar); fallback "Cliente WhatsApp".
+- **`webhook.ts`** — `processWhatsAppWebhook(payload, deps)` e `extractIncomingMessages(payload)`: descobre a empresa por `WhatsAppConfig.phoneNumberId` (status `CONNECTED`), get-or-create `Client`, busca/cria `Conversation`, reutiliza `loadConversationContext` + `processMessage`, descriptografa o token e envia a resposta. Se a conversa estiver **assumida por um humano** (`handledById`), salva a mensagem do cliente e **não aciona a IA** (conta como `handled`). Publica eventos `message`/`conversation` (SSE).
+- **`deliver.ts`** — `deliverWhatsAppMessage(companyId, to, message)`: busca o `WhatsAppConfig` CONNECTED da empresa, descriptografa o token e envia; retorna `boolean` (false se sem config/token inválido/falha de rede). Usado pelo painel para responder conversas WhatsApp.
+- **Testes**: `src/__tests__/whatsapp/*` (verify-signature, client, send-message, deliver, webhook — inclui isolamento multi-tenant e modo assumido).
+- **Observações**: Sem SDK novo — usa `fetch` global. O `.env` só tem `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`. Tokens de acesso por empresa ficam criptografados (`aes-256-gcm`) em `WhatsAppConfig`, nunca no `.env` nem no frontend.
+
+### 9.19 Tempo real e Assunção manual
+
+- **`src/lib/realtime/index.ts`** — `EventEmitter` em memória: `publish(companyId, type, data)` e `subscribe(companyId, listener)` (filtra por empresa). Usado pelo webhook, pelas rotas de mensagens e por takeover/release para avisar a UI.
+- **`src/app/api/conversations/events/route.ts`** — SSE (`GET` autenticado): stream `text/event-stream` com eventos `ready`, `heartbeat` (15s), `message` (`{ conversationId, role, content }`), `conversation` (`{ id }`). Limpa assinatura no `abort`.
+- **`src/app/api/conversations/[id]/takeover/route.ts`** — `POST`: define `handledById = user.id` + `handledAt`; publica evento `conversation`.
+- **`src/app/api/conversations/[id]/release/route.ts`** — `POST`: zera `handledById`/`handledAt`; publica evento `conversation`.
+- **`Conversation.handledById`/`handledAt`** — campos novos no schema (relação com `User`). Enquanto assumida, o webhook não responde e o `POST /messages` do painel responde direto ao WhatsApp sem IA.
+- **UI**: `src/app/dashboard/conversations/page.tsx` assina o SSE, recarrega conversas/mensagens em eventos, mostra badge "Atendida por X" e botões **Assumir**/**Liberar**; polling de fallback a cada 20s. `src/app/dashboard/conversations/[id]/page.tsx` recebeu os mesmos recursos.
+- **Testes**: `src/__tests__/realtime.test.ts` (pub/sub por empresa + unsubscribe).
+
+### 9.20 Produção (28 pacotes)
 
 `next`, `react`, `react-dom`, `typescript`, `@prisma/client`, `@prisma/adapter-pg`, `prisma`, `pg`, `@supabase/supabase-js`, `jsonwebtoken`, `jose`, `bcryptjs`, `speakeasy`, `stripe`, `zod`, `tailwindcss`, `tailwindcss-animate`, `@tailwindcss/postcss`, `clsx`, `tailwind-merge`, `class-variance-authority`, `framer-motion`, `lucide-react`, 11x `@radix-ui/*`, `next-themes`, `next-auth`, `helmet`, `cors`, `cookie`, `uuid`, `sharp`, `qrcode`, `multer`, `openai`, `ollama`
 
 ### 9.19 Dev (12 pacotes)
 
 `@types/*` (6), `vitest`, `@vitest/coverage-v8`, `tsx`, `prettier`, `eslint-plugin-prettier`, `@tailwindcss/postcss`
+
+### 9.21 Fase SaaS — Billing, RBAC, 2FA, LGPD, Rate Limit
+
+Novos módulos `src/lib/`:
+
+- **`auth/permissions.ts`** — RBAC (ver 6.6).
+- **`auth/api-guard.ts`** — `requireAuth`/`requireRole`/`requirePermission` (403 com detalhes da permissão).
+- **`tenant/plan-limits.ts`** — limites por plano (`FREE`: 1 usuário, 50 msgs IA, 20 clientes; `ENTERPRISE`: altos); `checkUserLimit` na criação de usuário; `getPlanComparison`.
+- **`billing/plans.ts`** — `PLAN_DEFINITIONS` (FREE/STARTER/PRO/BUSINESS/ENTERPRISE, preços em centavos), `ensurePlans` (upsert), `listActivePlans`, `getPlanByCode`.
+- **`billing/coupons.ts`** — `validateCoupon` (inativo/expirado/esgotado/`allowedPlans`), `computeDiscount` (PERCENTAGE/FIXED), `incrementCouponUsage`.
+- **`billing/subscription.ts`** — `getCompanyBilling` (Subscription → fallback Company), `enforceBilling` (bloqueia PAST_DUE/CANCELED/trial expirado; usada no webhook WhatsApp e no `POST /messages` → 402), `createOrUpdateSubscription`, `recordBilling` (BillingHistory + logs), `getBillingHistory`, `syncSubscriptionRow`.
+- **`billing/stripe.ts`** — modo **demo** sem `STRIPE_SECRET_KEY` (ativa assinatura local marcada `mode: "demo"`); com chave, cria sessão de Checkout real (price IDs por env, metadata `companyId/planCode/couponCode`).
+- **`auth/two-factor.ts`** — TOTP + QR + recovery codes (ver 6.5).
+- **`rate-limit/with-rate-limit.ts`** — `guardRateLimit(request, key, kind?)` (api 60/min, webhook 300/min) + `clientIp`; aplicado no webhook WhatsApp, `POST /messages` e `POST /billing/checkout`.
+
+Novas rotas `src/app/api/`:
+
+- **`billing/plans`** (GET) — planos ativos (autenticado).
+- **`billing/checkout`** (POST) — perm `company:manage_billing`; valida cupom, calcula desconto, demo → assinatura ACTIVE; stripe → sessão Checkout.
+- **`billing/coupons/validate`** (POST) — valida cupom para um plano.
+- **`admin/coupons`** (GET/POST) e **`admin/coupons/[id]`** (PATCH/DELETE) — CRUD de cupons (SUPER_ADMIN).
+- **`admin/billing`** (GET) — totais, MRR, distribuição por plano/status, últimas 50 transações (SUPER_ADMIN).
+- **`company/users`** (GET/POST) e **`company/users/[id]`** (PATCH/DELETE) — gestão de usuários da empresa (ADMIN/SUPER_ADMIN).
+- **`account/data-export`** (POST) — portabilidade LGPD (JSON completo; log `DATA_EXPORT`).
+- **`account/data-deletion`** (POST) — anonimização LGPD (clientes/agendamentos/conversas; log `DATA_DELETE`).
+
+Páginas públicas novas: **`/refund`** (política de reembolso); `/privacy` atualizada com 2FA e LGPD. Middleware inclui `/refund`/`/help`/`/faq`/`/status` como públicas.
+
+Novos modelos Prisma: `Plan`, `Subscription` (1:1 `Company`), `BillingHistory`, `Coupon`; enums `PlanType` += `FREE`/`ENTERPRISE`, `UserRole` += `SUPER_ADMIN`/`ATTENDANT`; `User.twoFactorRecoveryCodes` (Json). Aplicação via `npx prisma db push --accept-data-loss` + `npx prisma generate` (nunca `prisma migrate dev` — P3015).
+
+Testes novos: `permissions`, `auth/two-factor`, `billing/coupons`, `billing/enforce-billing`, `rate-limit/guard`.
 
 ---
 
@@ -2214,7 +2301,7 @@ graph TB
 
     subgraph "Infrastructure"
         PG[(PostgreSQL)]
-        OLLAMA[Ollama<br/>llama3.2]
+        OLLAMA[Ollama<br/>qwen3:8b]
         SMTP[SMTP<br/>Emails]
         SENTRY[Sentry<br/>Monitoring]
     end
@@ -2323,12 +2410,12 @@ sequenceDiagram
     actor C as Cliente
     participant UI as ConversationChat
     participant API as /api/conversations/[id]/messages
-    participant Guard as Tenant Guard
+    participant CL as context-loader
+    participant AI as generateAIResponse (assistant.ts)
+    participant M as conversation-manager
     participant DB as Prisma/PostgreSQL
-    participant AI as generateAIResponse
-    participant Assistant as assistant.ts
-    participant Provider as provider.ts
-    participant Ollama as Ollama (llama3.2)
+    participant P as provider.ts
+    participant Ollama as Ollama (qwen3:8b)
 
     C->>UI: Digita mensagem
     UI->>UI: Renderiza mensagem do usuário
@@ -2336,45 +2423,36 @@ sequenceDiagram
     UI->>API: POST /api/conversations/[id]/messages
 
     API->>API: getCurrentUser() valida cookies JWT
-    API->>Guard: validateResourceAccess(conversationId)
-    Guard->>DB: Verifica companyId do usuário = companyId da conversa
-    DB-->>Guard: OK
+    API->>CL: loadConversationContext(id, companyId)
+    CL->>DB: Busca conversa + empresa + aiConfig + services + faq + client.name
+    DB-->>CL: conversation + companyContext + knownName
 
-    API->>DB: Busca conversa + empresa + aiConfig + services + faq
-    DB-->>API: conversation + company + config + services[] + faq[]
+    API->>AI: generateAIResponse({ conversationId, message, company, knownName })
+    AI->>M: processMessage(input)
 
-    API->>DB: INSERT message (role: user)
-    DB-->>API: savedMessage
+    M->>DB: INSERT message (role: user)
+    M->>DB: Busca estado salvo (coluna state)
+    DB-->>M: currentState
 
-    API->>DB: Busca últimas 20 mensagens
-    DB-->>API: history[]
+    M->>M: detectIntent() + extractSlots() + computeAppointmentStep()
+    M->>M: buildPrompt() (estado + contexto + últimas 3 msg)
 
-    API->>API: Filtra isGarbageResponse() do histórico
+    M->>P: POST http://localhost:11434/api/chat
+    Note over P: payload: { model: "qwen3:8b", messages, stream:false, options }
+    P->>Ollama: Requisicao HTTP
+    Ollama-->>P: { message: { content } }
+    P-->>M: responseContent
 
-    API->>AI: generateAIResponse(cleanHistory, companyContext)
+    M->>M: Guardrails (isGarbageResponse + containsInventedInfo)
+    alt Confirmado
+        M->>DB: CREATE Appointment (resolve data + auditoria)
+    end
 
-    AI->>Assistant: buildSystemPrompt(company)
-    Note over Assistant: Monta: nome, servicos, FAQ, personalidade
+    M->>DB: INSERT message (role: assistant) + UPDATE state
+    M-->>AI: { response, state, appointmentPersisted }
+    AI-->>API: result
 
-    AI->>AI: slice(-6) das mensagens
-
-    AI->>Provider: POST http://localhost:11434/api/chat
-    Note over Provider: payload: { model, messages, stream:false, options }
-
-    Provider->>Ollama: Requisicao HTTP
-    Ollama->>Ollama: Processa inferencia
-    Ollama-->>Provider: { message: { content }, done_reason }
-
-    Provider-->>AI: responseContent
-
-    AI->>AI: Verifica conteudo vazio fallback
-    AI->>AI: isGarbageResponse(response) se true erro 500
-    AI-->>API: responseContent
-
-    API->>DB: INSERT message (role: assistant)
-    DB-->>API: savedAIMessage
-
-    API-->>UI: { success: true, message: savedAIMessage }
+    API-->>UI: { success: true, role: "assistant", content }
     UI->>UI: Renderiza resposta da IA
 ```
 
@@ -2567,26 +2645,20 @@ sequenceDiagram
 
 ## 16. ARQUIVOS MENCIONADOS MAS NÃO ENCONTRADOS NO DISCO
 
-Os seguintes 13 arquivos são mencionados em imports/código-fonte ou foram planejados, mas **não existem fisicamente** no projeto. Desenvolvedores futuros devem criar ou remover as referências:
+Os seguintes 7 arquivos são mencionados em imports/código-fonte ou foram planejados, mas **não existem fisicamente** no projeto. Desenvolvedores futuros devem criar ou remover as referências:
 
 | # | Caminho | Onde é referenciado |
 |---|---|---|
-| 1 | `src/lib/ai/service.ts` | `conversations/[id]/messages/route.ts` |
-| 2 | `src/lib/ai/context.ts` | `src/lib/ai/service.ts` |
-| 3 | `src/lib/ai/templates.ts` | `src/lib/ai/service.ts` |
-| 4 | `src/lib/ai/memory.ts` | `src/lib/ai/service.ts` |
-| 5 | `src/lib/ai/metrics.ts` | `src/lib/ai/service.ts` |
-| 6 | `src/lib/ai/types.ts` | `src/lib/ai/provider.ts` |
-| 7 | `src/lib/auth/auth.types.ts` | `src/lib/auth/*` (vários) |
-| 8 | `src/lib/security/validation.ts` | `src/lib/tenant/guard.ts` |
-| 9 | `src/lib/storage/index.ts` | `upload/route.ts`, `files/[id]/route.ts` |
-| 10 | `src/lib/monitoring/metrics.ts` | `src/lib/logger/structured.ts` (provável) |
-| 11 | `src/lib/supabase/server.ts` | `admin/companies/[id]/route.ts` |
-| 12 | `src/lib/supabase/middleware.ts` | `middleware.ts` |
-| 13 | `src/app/admin/companies/[id]/page.tsx` | `admin/companies/page.tsx` (link) |
+| 1 | `src/lib/auth/auth.types.ts` | `src/lib/auth/*` (vários) |
+| 2 | `src/lib/security/validation.ts` | `src/lib/tenant/guard.ts` |
+| 3 | `src/lib/storage/index.ts` | `upload/route.ts`, `files/[id]/route.ts` |
+| 4 | `src/lib/monitoring/metrics.ts` | `src/lib/logger/structured.ts` (provável) |
+| 5 | `src/lib/supabase/server.ts` | `admin/companies/[id]/route.ts` |
+| 6 | `src/lib/supabase/middleware.ts` | `middleware.ts` |
+| 7 | `src/app/admin/companies/[id]/page.tsx` | `admin/companies/page.tsx` (link) |
 
 **Ação necessária**: Criar estes arquivos OU remover as referências de import para o código compilar.
 
 ---
 
-*Documentação gerada em 25/07/2026 — 129 arquivos .ts/.tsx no projeto, 127 documentados (98.4%), 2 arquivos auto-gerados/novos adicionados, 13 pendentes de criação.*
+*Documentação gerada em 25/07/2026 — 129 arquivos .ts/.tsx no projeto, 127 documentados (98.4%), 2 arquivos auto-gerados/novos adicionados, 7 pendentes de criação.*

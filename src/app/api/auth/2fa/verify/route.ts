@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
-import speakeasy from "speakeasy";
 import { createLog } from "@/lib/logger";
+import { verifyTotp } from "@/lib/auth/two-factor";
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,14 +26,7 @@ export async function POST(request: NextRequest) {
       return errorResponse("2FA não configurado", 400);
     }
 
-    const verified = speakeasy.totp.verify({
-      secret: userData.twoFactorSecret,
-      encoding: "base32",
-      token,
-      window: 1,
-    });
-
-    if (!verified) {
+    if (!verifyTotp(userData.twoFactorSecret, token)) {
       return errorResponse("Código inválido", 400);
     }
 
@@ -43,7 +36,7 @@ export async function POST(request: NextRequest) {
     });
 
     await createLog({
-      action: "AI_CONFIG_CHANGE",
+      action: "TWOFA_VERIFY",
       entity: "user",
       entityId: user.id,
       description: "2FA ativado com sucesso",
@@ -52,7 +45,8 @@ export async function POST(request: NextRequest) {
     });
 
     return successResponse({ message: "2FA ativado com sucesso" });
-  } catch {
+  } catch (error) {
+    console.error(error);
     return errorResponse("Erro interno do servidor", 500);
   }
 }
