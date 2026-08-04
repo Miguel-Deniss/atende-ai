@@ -1,16 +1,15 @@
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/api-guard";
 import {
   successResponse,
   errorResponse,
-  unauthorizedResponse,
 } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
 
 export async function POST() {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:manage_whatsapp");
+    if (response) return response;
 
     const updated = await prisma.whatsAppConfig.updateMany({
       where: { companyId: user.companyId },

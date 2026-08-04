@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
-import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/auth/api-response";
+import { requirePermission } from "@/lib/auth/api-guard";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { appointmentSchema, paginationSchema } from "@/lib/validators/auth";
 import { createLog } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:view_schedule");
+    if (response) return response;
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:manage_schedule");
+    if (response) return response;
 
     const body = await request.json();
     const parsed = appointmentSchema.safeParse(body);

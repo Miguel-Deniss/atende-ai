@@ -1,6 +1,6 @@
-import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
+import { requireRole } from "@/lib/auth/api-guard";
 import { createLog } from "@/lib/logger";
 import {
   generateSecret,
@@ -11,12 +11,8 @@ import {
 
 export async function POST() {
   try {
-    const user = await getCurrentUser();
-    if (!user) return errorResponse("Não autorizado", 401);
-
-    if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
-      return errorResponse("Apenas administradores podem configurar 2FA", 403);
-    }
+    const { user, response } = await requireRole(["ADMIN", "SUPER_ADMIN"]);
+    if (response) return response;
 
     const secret = generateSecret(user.email);
     const recoveryCodes = generateRecoveryCodes(10);

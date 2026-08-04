@@ -1,14 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
-import { successResponse, errorResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse } from "@/lib/auth/api-response";
+import { successResponse, errorResponse, notFoundResponse } from "@/lib/auth/api-response";
+import { requireRole } from "@/lib/auth/api-guard";
 import { createLog } from "@/lib/logger";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
-    if (user.role !== "SUPER_ADMIN") return forbiddenResponse("Apenas administradores podem acessar esta área");
+    const { response } = await requireRole(["SUPER_ADMIN"]);
+    if (response) return response;
     const { id } = await params;
 
     const company = await prisma.company.findUnique({
@@ -51,9 +50,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
-    if (user.role !== "SUPER_ADMIN") return forbiddenResponse("Apenas administradores podem modificar empresas");
+    const { user, response } = await requireRole(["SUPER_ADMIN"]);
+    if (response) return response;
     const { id } = await params;
 
     const body = await request.json();
@@ -116,9 +114,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
-    if (user.role !== "SUPER_ADMIN") return forbiddenResponse("Apenas administradores podem excluir empresas");
+    const { user, response } = await requireRole(["SUPER_ADMIN"]);
+    if (response) return response;
     const { id } = await params;
 
     const company = await prisma.company.findUnique({ where: { id } });

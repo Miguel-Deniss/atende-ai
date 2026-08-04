@@ -1,15 +1,15 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
-import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/auth/api-response";
+import { requireAuth } from "@/lib/auth/api-guard";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { profileUpdateSchema, passwordChangeSchema } from "@/lib/validators/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createLog } from "@/lib/logger";
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requireAuth();
+    if (response) return response;
 
     const profile = await prisma.user.findUnique({
       where: { id: user.id },
@@ -32,8 +32,8 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requireAuth();
+    if (response) return response;
 
     const body = await request.json();
     const parsed = profileUpdateSchema.safeParse(body);
@@ -63,8 +63,8 @@ export async function PUT(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requireAuth();
+    if (response) return response;
 
     const body = await request.json();
 

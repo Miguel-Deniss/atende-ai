@@ -1,12 +1,10 @@
 import { NextRequest } from "next/server";
-import { getCurrentUser } from "@/lib/auth/session";
 import {
   successResponse,
   errorResponse,
-  unauthorizedResponse,
-  forbiddenResponse,
   notFoundResponse,
 } from "@/lib/auth/api-response";
+import { requireRole } from "@/lib/auth/api-guard";
 import { prisma } from "@/lib/db/prisma";
 import { couponSchema } from "@/lib/validators/auth";
 import { createLog } from "@/lib/logger";
@@ -16,11 +14,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
-    if (user.role !== "SUPER_ADMIN") {
-      return forbiddenResponse("Apenas super administradores podem acessar esta área");
-    }
+    const { user, response } = await requireRole(["SUPER_ADMIN"]);
+    if (response) return response;
 
     const { id } = await params;
 
@@ -67,11 +62,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
-    if (user.role !== "SUPER_ADMIN") {
-      return forbiddenResponse("Apenas super administradores podem acessar esta área");
-    }
+    const { user, response } = await requireRole(["SUPER_ADMIN"]);
+    if (response) return response;
 
     const { id } = await params;
 

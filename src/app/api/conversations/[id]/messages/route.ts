@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/api-guard";
 import { generateAIResponse } from "@/lib/ai/assistant";
 import { loadConversationContext } from "@/lib/ai/context-loader";
 import { deliverWhatsAppMessage } from "@/lib/whatsapp/deliver";
@@ -11,7 +11,6 @@ import { guardRateLimit } from "@/lib/rate-limit/with-rate-limit";
 import {
   successResponse,
   errorResponse,
-  unauthorizedResponse,
   notFoundResponse,
 } from "@/lib/auth/api-response";
 
@@ -20,9 +19,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:view_conversations");
+    if (response) return response;
 
     const { id } = await params;
 
@@ -60,9 +58,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:respond_conversations");
+    if (response) return response;
 
     const { id } = await params;
 

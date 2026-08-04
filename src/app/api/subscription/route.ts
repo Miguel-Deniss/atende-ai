@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
-import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/auth/api-response";
+import { requireAuth } from "@/lib/auth/api-guard";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { getCompanyBilling } from "@/lib/billing/subscription";
 import { getPlanByCode } from "@/lib/billing/plans";
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requireAuth();
+    if (response) return response;
 
     const billing = await getCompanyBilling(user.companyId);
 
@@ -38,8 +38,8 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { response } = await requireAuth();
+    if (response) return response;
 
     return errorResponse(
       "Alteração de plano deve ser feita pelo fluxo de checkout em /api/billing/checkout.",

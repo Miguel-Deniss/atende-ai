@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
-import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/auth/api-response";
+import { requirePermission } from "@/lib/auth/api-guard";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
 import { sanitizeFilename } from "@/lib/security/sanitize";
 import { writeFile, mkdir } from "fs/promises";
@@ -37,8 +37,8 @@ const BLOCKED_EXTENSIONS = [
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:manage_documents");
+    if (response) return response;
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;

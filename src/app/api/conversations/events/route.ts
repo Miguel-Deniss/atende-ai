@@ -1,13 +1,12 @@
 import { NextRequest } from "next/server";
-import { getCurrentUser } from "@/lib/auth/session";
-import { unauthorizedResponse } from "@/lib/auth/api-response";
+import { requirePermission } from "@/lib/auth/api-guard";
 import { subscribe } from "@/lib/realtime";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return unauthorizedResponse();
+  const { user, response } = await requirePermission("company:view_conversations");
+  if (response) return response;
 
   const encoder = new TextEncoder();
 

@@ -1,14 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
-import { successResponse, errorResponse, unauthorizedResponse, forbiddenResponse } from "@/lib/auth/api-response";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
+import { requireRole } from "@/lib/auth/api-guard";
 import { paginationSchema } from "@/lib/validators/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
-    if (user.role !== "SUPER_ADMIN") return forbiddenResponse("Apenas super administradores");
+    const { response } = await requireRole(["SUPER_ADMIN"]);
+    if (response) return response;
 
     const { searchParams } = new URL(request.url);
     const parsed = paginationSchema.safeParse({

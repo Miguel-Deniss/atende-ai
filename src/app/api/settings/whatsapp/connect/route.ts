@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/api-guard";
 import {
   successResponse,
   errorResponse,
-  unauthorizedResponse,
 } from "@/lib/auth/api-response";
 import { whatsAppConnectSchema } from "@/lib/validators/auth";
 import { encrypt } from "@/lib/security/encryption";
@@ -13,8 +12,8 @@ import { createLog } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:manage_whatsapp");
+    if (response) return response;
 
     const company = await prisma.company.findUnique({
       where: { id: user.companyId },

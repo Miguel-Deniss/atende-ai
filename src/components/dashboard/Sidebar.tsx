@@ -31,6 +31,7 @@ const menuItems = [
   { icon: Settings, label: "Configurações", href: "/dashboard/settings" },
   { icon: CreditCard, label: "Minha assinatura", href: "/dashboard/subscription" },
   { icon: UserCircle, label: "Perfil", href: "/dashboard/profile" },
+  { icon: Shield, label: "Equipe", href: "/dashboard/team" },
 ];
 
 export function Sidebar() {
@@ -101,7 +102,14 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => {
+          {menuItems
+            .filter((item) => {
+              if (item.href === "/dashboard/team") {
+                return user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+              }
+              return true;
+            })
+            .map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
-import { successResponse, errorResponse, unauthorizedResponse, notFoundResponse } from "@/lib/auth/api-response";
+import { requirePermission } from "@/lib/auth/api-guard";
+import { successResponse, errorResponse, notFoundResponse } from "@/lib/auth/api-response";
 import { clientSchema } from "@/lib/validators/auth";
 import { createLog } from "@/lib/logger";
 
@@ -13,8 +13,8 @@ async function getClientForCompany(clientId: string, companyId: string) {
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:view_clients");
+    if (response) return response;
     const { id } = await params;
 
     const client = await getClientForCompany(id, user.companyId);
@@ -28,8 +28,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:manage_clients");
+    if (response) return response;
     const { id } = await params;
 
     const existing = await getClientForCompany(id, user.companyId);
@@ -66,8 +66,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
+    const { user, response } = await requirePermission("company:manage_clients");
+    if (response) return response;
     const { id } = await params;
 
     const existing = await getClientForCompany(id, user.companyId);

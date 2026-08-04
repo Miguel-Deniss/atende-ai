@@ -1,20 +1,12 @@
-import { getCurrentUser } from "@/lib/auth/session";
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  forbiddenResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
+import { requireRole } from "@/lib/auth/api-guard";
 import { prisma } from "@/lib/db/prisma";
 import { getPlanPriceMap } from "@/lib/billing/plans";
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) return unauthorizedResponse();
-    if (user.role !== "SUPER_ADMIN") {
-      return forbiddenResponse("Apenas super administradores podem acessar esta área");
-    }
+    const { response } = await requireRole(["SUPER_ADMIN"]);
+    if (response) return response;
 
     const [companies, activeSubs, billingHistory, planDistribution] =
       await Promise.all([

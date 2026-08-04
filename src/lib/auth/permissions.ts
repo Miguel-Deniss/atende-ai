@@ -9,10 +9,14 @@ export type Permission =
   | "company:view_conversations"
   | "company:respond_conversations"
   | "company:view_clients"
+  | "company:manage_clients"
   | "company:manage_whatsapp"
   | "company:manage_ai"
   | "company:manage_users"
   | "company:manage_documents"
+  | "company:view_schedule"
+  | "company:manage_schedule"
+  | "company:manage_settings"
   | "company:view_metrics"
   | "company:manage_billing"
   | "company:export_data"
@@ -38,10 +42,14 @@ const COMPANY_ADMIN_PERMISSIONS: Permission[] = [
   "company:view_conversations",
   "company:respond_conversations",
   "company:view_clients",
+  "company:manage_clients",
   "company:manage_whatsapp",
   "company:manage_ai",
   "company:manage_users",
   "company:manage_documents",
+  "company:view_schedule",
+  "company:manage_schedule",
+  "company:manage_settings",
   "company:view_metrics",
   "company:manage_billing",
   "company:export_data",
@@ -54,11 +62,14 @@ const ROLE_PERMISSIONS: Record<PermissionRole, Permission[]> = {
     "company:view_conversations",
     "company:respond_conversations",
     "company:view_clients",
+    "company:view_schedule",
   ],
   EMPLOYEE: [
     "company:view_conversations",
     "company:respond_conversations",
     "company:view_clients",
+    "company:view_schedule",
+    "company:manage_schedule",
   ],
   FINANCIAL: ["company:view_metrics", "company:manage_billing"],
 };

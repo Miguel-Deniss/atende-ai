@@ -13,14 +13,14 @@ import {
 
 export type ScopedUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
-export interface GuardResult {
-  user: ScopedUser | null;
+export type GuardResult = {
+  user: ScopedUser;
   response: Response | null;
-}
+};
 
 export async function requireAuth(): Promise<GuardResult> {
   const user = await getCurrentUser();
-  if (!user) return { user: null, response: unauthorizedResponse() };
+  if (!user) return { user: user as unknown as ScopedUser, response: unauthorizedResponse() };
 
   if (user.company.status !== "ACTIVE") {
     return {
@@ -38,7 +38,7 @@ export async function requireRole(
   const { user, response } = await requireAuth();
   if (response) return { user, response };
 
-  if (!authorize(user!, roles)) {
+  if (!authorize(user, roles)) {
     return { user, response: forbiddenResponse("Acesso não autorizado para esta função") };
   }
 
@@ -51,7 +51,7 @@ export async function requirePermission(
   const { user, response } = await requireAuth();
   if (response) return { user, response };
 
-  if (!can(user!, permission)) {
+  if (!can(user, permission)) {
     return { user, response: forbiddenResponse("Acesso não autorizado para esta função") };
   }
 

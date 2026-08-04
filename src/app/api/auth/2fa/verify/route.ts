@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireAuth } from "@/lib/auth/api-guard";
 import { prisma } from "@/lib/db/prisma";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
@@ -7,8 +7,8 @@ import { verifyTotp } from "@/lib/auth/two-factor";
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return errorResponse("Não autorizado", 401);
+    const { user, response } = await requireAuth();
+    if (response) return response;
 
     const body = await request.json();
     const { token } = body;
