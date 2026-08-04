@@ -101,6 +101,20 @@ export const companySettingsSchema = z.object({
   autoTransfer: z.boolean().optional(),
   autoReminders: z.boolean().optional(),
   requireConfirmation: z.boolean().optional(),
+  publicBookingEnabled: z.boolean().optional(),
+});
+
+export const publicBookingSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(255),
+  phone: z
+    .string()
+    .min(10, "Telefone inválido")
+    .max(20)
+    .regex(/^\+?[0-9 ()-]+$/, "Telefone inválido"),
+  email: z.string().email("E-mail inválido").max(255).optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
+  time: z.string().regex(/^\d{2}:\d{2}$/, "Horário inválido"),
+  service: z.string().min(1, "Serviço é obrigatório").max(255),
 });
 
 export const whatsAppConnectSchema = z.object({

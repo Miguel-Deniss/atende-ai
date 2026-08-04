@@ -43,6 +43,7 @@ export async function GET() {
       autoTransfer: company.settings?.autoTransfer ?? true,
       autoReminders: company.settings?.autoReminders ?? true,
       requireConfirmation: company.settings?.requireConfirmation ?? true,
+      publicBookingEnabled: company.settings?.publicBookingEnabled ?? false,
     });
   } catch {
     return errorResponse("Erro interno do servidor", 500);
@@ -64,7 +65,7 @@ export async function PUT(request: NextRequest) {
       return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);
     }
 
-    const { services, faq, welcomeMessage, absenceMessage, autoTransfer, autoReminders, requireConfirmation, companyName, phone, address, hours, ...rest } = parsed.data;
+    const { services, faq, welcomeMessage, absenceMessage, autoTransfer, autoReminders, requireConfirmation, publicBookingEnabled, companyName, phone, address, hours, ...rest } = parsed.data;
 
     const companyData: Record<string, unknown> = {};
     if (companyName !== undefined) companyData.name = companyName;
@@ -81,11 +82,12 @@ export async function PUT(request: NextRequest) {
       });
     }
 
-    if (autoTransfer !== undefined || autoReminders !== undefined || requireConfirmation !== undefined) {
+    if (autoTransfer !== undefined || autoReminders !== undefined || requireConfirmation !== undefined || publicBookingEnabled !== undefined) {
       const settingsData: Record<string, unknown> = {};
       if (autoTransfer !== undefined) settingsData.autoTransfer = autoTransfer;
       if (autoReminders !== undefined) settingsData.autoReminders = autoReminders;
       if (requireConfirmation !== undefined) settingsData.requireConfirmation = requireConfirmation;
+      if (publicBookingEnabled !== undefined) settingsData.publicBookingEnabled = publicBookingEnabled;
 
       await prisma.companySettings.upsert({
         where: { companyId: user.companyId },

@@ -19,6 +19,8 @@ const PUBLIC_PATHS = [
   "/api/webhooks/whatsapp",
   "/api/cron/reminders",
   "/api/health",
+  "/api/public",
+  "/b",
   "/legal",
   "/privacy",
   "/terms",

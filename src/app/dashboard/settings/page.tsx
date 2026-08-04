@@ -24,6 +24,7 @@ interface CompanyData {
   autoTransfer: boolean;
   autoReminders: boolean;
   requireConfirmation: boolean;
+  publicBookingEnabled: boolean;
 }
 
 const defaults: CompanyData = {
@@ -47,6 +48,7 @@ const defaults: CompanyData = {
   autoTransfer: true,
   autoReminders: true,
   requireConfirmation: true,
+  publicBookingEnabled: false,
 };
 
 export default function SettingsPage() {
@@ -270,6 +272,12 @@ export default function SettingsPage() {
             desc="Solicita confirmação do cliente ao agendar"
             checked={data.requireConfirmation}
             onToggle={(v) => update("requireConfirmation", v)}
+          />
+          <ToggleRow
+            label="Agendamento online público"
+            desc="Permite clientes agendarem sem login pelo link público /b/"
+            checked={data.publicBookingEnabled}
+            onToggle={(v) => update("publicBookingEnabled", v)}
           />
         </div>
       </SectionCard>

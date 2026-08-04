@@ -521,6 +521,38 @@
 
 ---
 
+## Public Booking (3 rotas) — agendamento online
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/public/companies/[slug]/route.ts`
+- **Métodos HTTP**: `GET`
+- **Autenticação**: public
+- **Fluxo**: `getPublicCompany(slug)` → empresa ativa (não deletada, `status: ACTIVE`) com settings, aiConfig.services ordenados; retorna `{ companyId, slug, name, phone, address, hours, welcomeMessage, services, bookingEnabled }`
+- **Observações**: Não expõe dados sensíveis (tokens, emails de staff, etc). 404 se não encontrada.
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/public/companies/[slug]/slots/route.ts`
+- **Métodos HTTP**: `GET`
+- **Autenticação**: public
+- **Parâmetros**: `date` (YYYY-MM-DD, obrigatório)
+- **Fluxo**: valida empresa ativa + `bookingEnabled`; `getAvailableSlots(companyId, date, hours)` parseia horários ("08:00 às 18:00") em slots de 30min, remove ocupados (appointments do dia) e passados (se hoje)
+- **Observações**: 403 se agendamento desabilitado, 400 se `date` inválido.
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/public/companies/[slug]/appointments/route.ts`
+- **Métodos HTTP**: `POST`
+- **Autenticação**: public + rate limit (`public-booking:IP`)
+- **Fluxo**: `publicBookingSchema` (name, phone, email opcional, date, time, service) → valida empresa ativa + `bookingEnabled` + horário disponível → upsert de `Client` por phone (update name/email/lastService) → cria `Appointment` status `pending` → log `AI_APPOINTMENT_CREATE`
+- **Observações**: 409 se horário indisponível. Página `/b/[slug]`.
+
+---
+
 ## System (3 rotas)
 
 ---
