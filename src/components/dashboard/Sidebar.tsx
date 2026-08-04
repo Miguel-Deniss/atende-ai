@@ -20,11 +20,13 @@ import {
   Menu,
   X,
   Shield,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
+  { icon: BarChart3, label: "Relatórios", href: "/dashboard/reports" },
   { icon: MessageSquare, label: "Conversas", href: "/dashboard/conversations" },
   { icon: Calendar, label: "Agenda", href: "/dashboard/schedule" },
   { icon: Users, label: "Clientes", href: "/dashboard/clients" },

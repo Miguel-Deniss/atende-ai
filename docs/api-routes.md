@@ -845,6 +845,27 @@
 
 ---
 
+## Dashboard (2 rotas) — relatórios e estatísticas
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/dashboard/stats/route.ts`
+- **Métodos HTTP**: `GET`
+- **Autenticação**: required (qualquer papel autenticado)
+- **Fluxo**: cards (clientes, conversas hoje, agendamentos hoje, taxa de resposta), gráfico de 7 dias (agendamentos/conversas por dia), 5 conversas recentes, agenda de hoje
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/dashboard/reports/route.ts`
+- **Métodos HTTP**: `GET`
+- **Autenticação**: required
+- **Parâmetros**: `range` (7d | 30d | 90d)
+- **Fluxo**: totais com variação mês a mês, serviços mais procurados, horários de pico (agrupado por hora) e status das conversas
+
+---
+
 ## Company Users (2 rotas) — fase SaaS
 
 ---
