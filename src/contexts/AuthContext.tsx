@@ -17,6 +17,7 @@ interface User {
     subscriptionStatus: string;
   };
   twoFactorEnabled?: boolean;
+  emailVerified?: boolean;
 }
 
 interface AuthContextType {
@@ -25,10 +26,13 @@ interface AuthContextType {
   login: (
     email: string,
     password: string,
-    totpCode?: string
+    totpCode?: string,
+    rememberMe?: boolean
   ) => Promise<{
     success: boolean;
     requiresTwoFactor?: boolean;
+    userId?: string;
+    code?: string;
     error?: string;
   }>;
 
@@ -86,7 +90,9 @@ async function apiFetch(url: string, options?: RequestInit) {
   console.log("JSON:", data);
 
   if (!data.success) {
-    throw new Error(data.error || "Erro interno");
+    const error = new Error(data.error || "Erro interno") as Error & { code?: string };
+    error.code = data.code;
+    throw error;
   }
 
   return data;
@@ -118,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser();
   }, [refreshUser]);
 
-  const login = useCallback(async (email: string, password: string, totpCode?: string) => {
+  const login = useCallback(async (email: string, password: string, totpCode?: string, rememberMe?: boolean) => {
     console.log("ENTROU NO AUTH LOGIN");
 
     try {
@@ -131,8 +137,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email,
           password,
           totpCode,
+          rememberMe,
         }),
       });
+
+      if (data.data?.requiresTwoFactor) {
+        return {
+          success: false,
+          requiresTwoFactor: true,
+          userId: data.data.userId,
+        };
+      }
 
       const loggedUser = data.data.user;
 
@@ -146,6 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return {
         success: false,
+        code: error instanceof Error ? (error as Error & { code?: string }).code : undefined,
         error: error instanceof Error ? error.message : "Erro ao entrar",
       };
     }

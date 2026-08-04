@@ -34,6 +34,7 @@ export async function GET() {
       companyId: user.companyId,
       isActive: user.isActive,
       twoFactorEnabled: user.twoFactorEnabled,
+      emailVerified: user.emailVerified,
       company: {
         name: user.company.name,
         status: user.company.status,

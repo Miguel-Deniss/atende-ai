@@ -5,6 +5,7 @@ export const loginSchema = z.object({
   password: z.string().min(6, "Senha deve ter no minimo 6 caracteres").max(128),
   totpCode: z.string().length(6).optional(),
   recoveryCode: z.string().min(8).max(64).optional(),
+  rememberMe: z.boolean().optional(),
 });
 
 export const registerSchema = z.object({
@@ -109,13 +110,19 @@ export const whatsAppConnectSchema = z.object({
   phoneNumber: z.string().min(1, "Número é obrigatório"),
 });
 
+const optionalPaginationNumber = (min: number, max: number, defaultValue: number) =>
+  z.preprocess(
+    (value) => (value == null || value === "" ? undefined : value),
+    z.coerce.number().int().min(min).max(max).default(defaultValue)
+  );
+
 export const paginationSchema = z.object({
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(10),
-  search: z.string().optional(),
-  status: z.string().optional(),
-  sortBy: z.string().optional(),
-  sortOrder: z.enum(["asc", "desc"]).optional(),
+  page: optionalPaginationNumber(1, Number.MAX_SAFE_INTEGER, 1),
+  limit: optionalPaginationNumber(1, 100, 20),
+  search: z.string().nullish(),
+  status: z.string().nullish(),
+  sortBy: z.string().nullish(),
+  sortOrder: z.enum(["asc", "desc"]).nullish(),
 });
 
 const companyAssignableRoles = ["ATTENDANT", "EMPLOYEE", "FINANCIAL"] as const;

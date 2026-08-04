@@ -4,6 +4,7 @@ import { forgotPasswordSchema } from "@/lib/validators/auth";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { generateToken } from "@/lib/security/encryption";
 import { createLog } from "@/lib/logger";
+import { sendPasswordResetEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,6 +35,45 @@ export async function POST(request: NextRequest) {
         resetPasswordExpires: resetExpires,
       },
     });
+
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
+
+    try {
+      await sendPasswordResetEmail({
+        to: email,
+        resetUrl,
+        userEmail: email,
+        companyId: user.companyId,
+        userId: user.id,
+        ipAddress:
+          request.headers.get("x-forwarded-for") ||
+          request.headers.get("x-real-ip") ||
+          undefined,
+        userAgent: request.headers.get("user-agent") || undefined,
+      });
+    } catch (error) {
+      console.error("Erro ao enviar email de recuperação:", error);
+
+      await createLog({
+        action: "EMAIL_FAILED",
+        entity: "email",
+        entityId: email,
+        description: "Falha no envio do email de recuperação de senha",
+        companyId: user.companyId,
+        userId: user.id,
+        ipAddress:
+          request.headers.get("x-forwarded-for") ||
+          request.headers.get("x-real-ip") ||
+          undefined,
+        userAgent: request.headers.get("user-agent") || undefined,
+      });
+
+      return errorResponse(
+        "Não foi possível enviar o e-mail. Tente novamente em alguns instantes.",
+        500
+      );
+    }
 
     await createLog({
       action: "PASSWORD_RESET",

@@ -36,7 +36,9 @@ export type LogAction =
   | "BILLING_BLOCKED"
   | "COUPON_CREATE"
   | "COUPON_UPDATE"
-  | "COUPON_DELETE";
+  | "COUPON_DELETE"
+  | "EMAIL_SENT"
+  | "EMAIL_FAILED";
 
 export async function createLog(params: {
   action: LogAction;

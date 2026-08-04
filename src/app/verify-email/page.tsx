@@ -2,9 +2,9 @@ import { Suspense } from "react";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { AuthHeader } from "@/components/auth/AuthHeader";
 import { AuthFooter } from "@/components/auth/AuthFooter";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { VerifyEmailForm } from "@/components/auth/VerifyEmailForm";
 
-export default function LoginPage() {
+export default function VerifyEmailPage() {
   return (
     <AuthShell>
       <AuthHeader />
@@ -15,7 +15,7 @@ export default function LoginPage() {
           </div>
         }
       >
-        <LoginForm />
+        <VerifyEmailForm />
       </Suspense>
       <AuthFooter />
     </AuthShell>

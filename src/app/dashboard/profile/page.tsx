@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Save, Camera, Loader2, Check, X } from "lucide-react";
+import { Save, Camera, Loader2, Check, X, MailWarning } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ProfileData {
   name: string;
@@ -35,6 +36,8 @@ export default function ProfilePage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const emailVerified = user?.emailVerified ?? true;
 
   useEffect(() => {
     try {
@@ -105,6 +108,24 @@ export default function ProfilePage() {
         <h1 className="text-2xl font-bold text-white mb-1">Perfil</h1>
         <p className="text-gray-500 text-sm">Gerencie suas informações pessoais.</p>
       </motion.div>
+
+      {!emailVerified && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.08 }}
+        >
+          <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
+            <MailWarning className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-300">E-mail não verificado</p>
+              <p className="text-sm text-gray-400">
+                Confirme seu e-mail acessando o link enviado na sua caixa de entrada para ativar sua conta por completo.
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}

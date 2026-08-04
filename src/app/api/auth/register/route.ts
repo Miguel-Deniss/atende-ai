@@ -6,6 +6,8 @@ import { registerSchema } from "@/lib/validators/auth";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
 import { generateToken } from "@/lib/security/encryption";
+import { sendVerificationEmail } from "@/lib/email";
+import { getAppUrl } from "@/lib/email/client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,6 +76,28 @@ export async function POST(request: NextRequest) {
       userAgent,
     });
 
+    try {
+      const verifyUrl = `${getAppUrl()}/verify-email?token=${user.emailVerificationToken}`;
+      await sendVerificationEmail({
+        to: email,
+        verifyUrl,
+        companyId: company.id,
+        userId: user.id,
+      });
+    } catch (error) {
+      console.error("Failed to send verification email:", error);
+      await createLog({
+        action: "EMAIL_FAILED",
+        entity: "user",
+        entityId: user.id,
+        description: "Falha ao enviar e-mail de verificação no registro",
+        companyId: company.id,
+        userId: user.id,
+        ipAddress: ip,
+        userAgent,
+      });
+    }
+
     return successResponse({
       user: {
         id: user.id,
@@ -82,6 +106,7 @@ export async function POST(request: NextRequest) {
         role: user.role,
         companyId: company.id,
         companyName: company.name,
+        emailVerified: user.emailVerified,
       },
     }, 201);
   } catch (error) {

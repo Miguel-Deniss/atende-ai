@@ -6,6 +6,9 @@ const PUBLIC_PATHS = [
   "/",
   "/login",
   "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
   "/api/test-supabase",
   "/api/auth/login",
   "/api/auth/register",
@@ -71,35 +74,41 @@ export async function middleware(request: NextRequest) {
 
   if (pathname.startsWith("/dashboard")) {
     const accessToken = request.cookies.get("access_token")?.value;
-  
-    
-  
-    if (!accessToken) {
-      return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
-    }
-  
-    try {
-      const payload = await verifyEdgeToken(accessToken);
-    } catch (e) {
+    const refreshToken = request.cookies.get("refresh_token")?.value;
+    const sessionToken = request.cookies.get("session_token")?.value;
+
+    const hasSession = accessToken || refreshToken || sessionToken;
+
+    if (!hasSession) {
       return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
     }
   }
 
   if (pathname.startsWith("/admin") && !pathname.startsWith("/api/admin")) {
     const accessToken = request.cookies.get("access_token")?.value;
+    const refreshToken = request.cookies.get("refresh_token")?.value;
+    const sessionToken = request.cookies.get("session_token")?.value;
 
-    if (!accessToken) {
+    const hasSession = accessToken || refreshToken || sessionToken;
+
+    if (!hasSession) {
       return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
     }
 
-    const payload = await verifyEdgeToken(accessToken);
-    if (!payload || payload.role !== "SUPER_ADMIN") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+    if (accessToken) {
+      const payload = await verifyEdgeToken(accessToken);
+      if (payload && payload.role !== "SUPER_ADMIN") {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
     }
   }
 
   if (pathname.startsWith("/api/")) {
     if (isPublicPath) return response;
+
+    const isAuthPath = AUTH_API_PATHS.some((path) => pathname.startsWith(path));
+
+    if (isAuthPath) return response;
 
     const sessionToken = request.cookies.get("session_token")?.value;
     const accessToken = request.cookies.get("access_token")?.value;

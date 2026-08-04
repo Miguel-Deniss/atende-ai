@@ -96,7 +96,8 @@ export async function setAuthCookies(
   companyId: string,
   role: string,
   ipAddress?: string,
-  userAgent?: string
+  userAgent?: string,
+  rememberMe = false
 ) {
   const sessionToken = await createSession(userId, ipAddress, userAgent);
 
@@ -110,12 +111,14 @@ export async function setAuthCookies(
 
   const cookieStore = await cookies();
 
+  const sessionMaxAge = rememberMe ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+
   cookieStore.set(SESSION_COOKIE_NAME, sessionToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 7 * 24 * 60 * 60,
+    maxAge: sessionMaxAge,
   });
 
   cookieStore.set("access_token", accessToken, {
@@ -131,7 +134,7 @@ export async function setAuthCookies(
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 7 * 24 * 60 * 60,
+    maxAge: sessionMaxAge,
   });
 }
 
@@ -188,6 +191,7 @@ export async function getCurrentUser() {
         companyId: true,
         isActive: true,
         twoFactorEnabled: true,
+        emailVerified: true,
 
         company: {
           select: {

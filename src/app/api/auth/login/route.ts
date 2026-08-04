@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { setAuthCookies } from "@/lib/auth/session";
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, totpCode, recoveryCode } = parsed.data;
+    const { email, password, totpCode, recoveryCode, rememberMe } = parsed.data;
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
     const userAgent = request.headers.get("user-agent") || undefined;
 
@@ -88,11 +88,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (!user.isActive) {
-      return errorResponse("Conta desativada. Entre em contato com o suporte.", 403);
+      return NextResponse.json(
+        { success: false, error: "Conta desativada. Entre em contato com o suporte.", code: "ACCOUNT_DISABLED" },
+        { status: 403 }
+      );
     }
 
     if (user.company.status === "SUSPENDED") {
-      return errorResponse("Sua empresa está suspensa. Entre em contato com o suporte.", 403);
+      return NextResponse.json(
+        { success: false, error: "Sua assinatura encontra-se suspensa.", code: "COMPANY_SUSPENDED" },
+        { status: 403 }
+      );
     }
 
     if (user.twoFactorEnabled) {
@@ -141,7 +147,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await setAuthCookies(user.id, user.companyId, user.role, ip, userAgent);
+    await setAuthCookies(user.id, user.companyId, user.role, ip, userAgent, rememberMe);
 
     await prisma.user.update({
       where: { id: user.id },
@@ -179,6 +185,7 @@ export async function POST(request: NextRequest) {
         role: user.role,
         companyId: user.companyId,
         companyName: user.company.name,
+        emailVerified: user.emailVerified,
       },
     });
   } catch (error) {
