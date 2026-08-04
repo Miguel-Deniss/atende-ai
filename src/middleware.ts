@@ -17,6 +17,7 @@ const PUBLIC_PATHS = [
   "/api/auth/verify-email",
   "/api/webhooks/stripe",
   "/api/webhooks/whatsapp",
+  "/api/cron/reminders",
   "/api/health",
   "/legal",
   "/privacy",

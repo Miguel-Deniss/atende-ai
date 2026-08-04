@@ -195,19 +195,20 @@ model Client {
 }
 
 model Appointment {
-  id        String    @id @default(cuid())
-  time      String
-  date      DateTime
-  name      String
-  service   String
-  status    String    @default("pending")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  clientId  String?
-  companyId String
-  client    Client?   @relation(fields: [clientId], references: [id])
-  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  time           String
+  date           DateTime
+  name           String
+  service        String
+  status         String    @default("pending")
+  reminderSentAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  clientId       String?
+  companyId      String
+  client         Client?   @relation(fields: [clientId], references: [id])
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, date])
   @@map("appointments")

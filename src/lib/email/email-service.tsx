@@ -10,6 +10,7 @@ import {
   TwoFactorTemplate,
   InvitationTemplate,
   InvoiceTemplate,
+  AppointmentReminderTemplate,
 } from "./templates";
 import type { LogAction } from "@/lib/logger";
 
@@ -247,6 +248,34 @@ export async function sendInvoiceEmail(params: {
         amount={params.amount}
         dueDate={params.dueDate}
         invoiceNumber={params.invoiceNumber}
+      />
+    ),
+  });
+}
+
+export async function sendAppointmentReminderEmail(params: {
+  to: string;
+  customerName: string;
+  companyName: string;
+  service: string;
+  date: string;
+  time: string;
+  rescheduleUrl: string;
+  companyId?: string;
+}): Promise<{ id: string }> {
+  return sendEmail({
+    to: params.to,
+    subject: `Lembrete: ${params.service} em ${params.companyName} hoje às ${params.time}`,
+    templateName: "AppointmentReminder",
+    companyId: params.companyId,
+    template: (
+      <AppointmentReminderTemplate
+        customerName={params.customerName}
+        companyName={params.companyName}
+        service={params.service}
+        date={params.date}
+        time={params.time}
+        rescheduleUrl={params.rescheduleUrl}
       />
     ),
   });

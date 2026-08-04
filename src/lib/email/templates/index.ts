@@ -11,3 +11,5 @@ export { InvitationTemplate } from "./Invitation";
 export type { InvitationTemplateProps } from "./Invitation";
 export { InvoiceTemplate } from "./Invoice";
 export type { InvoiceTemplateProps } from "./Invoice";
+export { AppointmentReminderTemplate } from "./AppointmentReminder";
+export type { AppointmentReminderTemplateProps } from "./AppointmentReminder";

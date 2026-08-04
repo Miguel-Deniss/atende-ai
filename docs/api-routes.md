@@ -866,6 +866,20 @@
 
 ---
 
+## Cron (1 rota) — lembretes automáticos
+
+---
+
+#### `route.ts`
+- **Caminho**: `src/app/api/cron/reminders/route.ts`
+- **Métodos HTTP**: `GET`
+- **Autenticação**: header `x-cron-secret` deve bater com `CRON_SECRET` (env); sem ela → 503, mismatch → 401
+- **Fluxo**: `runAppointmentReminders()` (`src/lib/reminders/index.ts`) busca agendamentos nas próximas 24h (min 2h antes) com `reminderSentAt: null` e `deletedAt: null`; por empresa: pula se `settings.autoReminders` off ou cliente sem contato; envia WhatsApp (credenciais `WhatsAppConfig` descriptografadas com AES-GCM) e/ou email (template `AppointmentReminder`), marca `reminderSentAt`, log `EMAIL_SENT`/`EMAIL_FAILED`
+- **Execução manual**: `npx tsx scripts/run-reminders.ts`
+- **Observações**: Public no middleware (fora de auth de sessão, validado por secret).
+
+---
+
 ## Company Users (2 rotas) — fase SaaS
 
 ---
