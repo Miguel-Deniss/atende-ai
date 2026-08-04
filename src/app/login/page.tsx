@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
-  const router = useRouter();
   const { login } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -13,13 +11,16 @@ export default function LoginPage() {
 
   const [loading, setLoading] = useState(false);
 
+  const getNext = (): string => {
+    const raw = new URLSearchParams(window.location.search).get("next");
+    if (raw && raw.startsWith("/") && !raw.startsWith("//")) {
+      return raw;
+    }
+    return "/dashboard";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    console.log({
-      email,
-      password,
-    });
 
     if (!email || !password) {
       return;
@@ -30,10 +31,8 @@ export default function LoginPage() {
     try {
       const result = await login(email, password);
 
-      console.log("RESPOSTA DO AUTH:", result);
-
       if (result.success) {
-        window.location.href = "/dashboard";
+        window.location.href = getNext();
         return;
       }
 

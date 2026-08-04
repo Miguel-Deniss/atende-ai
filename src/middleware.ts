@@ -75,13 +75,13 @@ export async function middleware(request: NextRequest) {
     
   
     if (!accessToken) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
     }
   
     try {
       const payload = await verifyEdgeToken(accessToken);
     } catch (e) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
     }
   }
 
@@ -89,7 +89,7 @@ export async function middleware(request: NextRequest) {
     const accessToken = request.cookies.get("access_token")?.value;
 
     if (!accessToken) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
     }
 
     const payload = await verifyEdgeToken(accessToken);
