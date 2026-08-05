@@ -3,7 +3,13 @@ import { logger } from "@/lib/logger/structured";
 import { isCompanyAdmin } from "@/lib/auth/permissions";
 import crypto from "crypto";
 
-const SIGNED_URL_SECRET = process.env.SIGNED_URL_SECRET || "change-me-signed-url-secret";
+function getSignedUrlSecret(): string {
+  const secret = process.env.SIGNED_URL_SECRET;
+  if (!secret) {
+    throw new Error("SIGNED_URL_SECRET não configurado no ambiente");
+  }
+  return secret;
+}
 
 export interface FileAccessResult {
   allowed: boolean;
@@ -70,7 +76,7 @@ export function generateFileToken(uploadId: string, companyId: string, expiresIn
   const expiresAt = Date.now() + expiresInMs;
   const payload = `${uploadId}:${companyId}:${expiresAt}`;
   const signature = crypto
-    .createHmac("sha256", SIGNED_URL_SECRET)
+    .createHmac("sha256", getSignedUrlSecret())
     .update(payload)
     .digest("hex");
 
@@ -95,7 +101,7 @@ export function validateFileToken(token: string): {
     }
 
     const expectedSignature = crypto
-      .createHmac("sha256", SIGNED_URL_SECRET)
+      .createHmac("sha256", getSignedUrlSecret())
       .update(`${uploadId}:${companyId}:${expiresAtStr}`)
       .digest("hex");
 

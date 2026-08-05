@@ -1,10 +1,13 @@
 import crypto from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
-const KEY = process.env.ENCRYPTION_KEY || "0123456789abcdef0123456789abcdef";
 
 function getKey(): Buffer {
-  return crypto.scryptSync(KEY, "atendeai-salt", 32);
+  const secret = process.env.ENCRYPTION_KEY;
+  if (!secret) {
+    throw new Error("ENCRYPTION_KEY não configurado no ambiente");
+  }
+  return crypto.scryptSync(secret, "atendeai-salt", 32);
 }
 
 export function encrypt(text: string): string {
