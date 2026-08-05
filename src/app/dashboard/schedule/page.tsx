@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ChevronLeft, ChevronRight, Clock, X, Check, Loader2 } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Clock, X, Check, Loader2, CheckCircle2, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -121,6 +121,32 @@ export default function SchedulePage() {
       toast("Erro ao criar agendamento", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateStatus = async (appt: Appointment, status: string) => {
+    try {
+      const res = await fetch(`/api/schedule/${appt.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Erro ao atualizar");
+      toast(status === "confirmed" ? "Agendamento confirmado!" : "Agendamento cancelado");
+      await loadAppointments(year, month);
+    } catch {
+      toast("Erro ao atualizar agendamento", "error");
+    }
+  };
+
+  const removeAppointment = async (appt: Appointment) => {
+    try {
+      const res = await fetch(`/api/schedule/${appt.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Erro ao remover");
+      toast("Agendamento removido");
+      await loadAppointments(year, month);
+    } catch {
+      toast("Erro ao remover agendamento", "error");
     }
   };
 
@@ -251,14 +277,29 @@ export default function SchedulePage() {
                         <span className="text-sm font-medium text-blue-400">{appt.time}</span>
                         <div className="flex items-center gap-1">
                           <Badge
-                            variant={appt.status === "confirmed" ? "success" : "warning"}
+                            variant={
+                              appt.status === "confirmed"
+                                ? "success"
+                                : appt.status === "cancelled"
+                                  ? "destructive"
+                                  : appt.status === "completed"
+                                    ? "secondary"
+                                    : "warning"
+                            }
                             className="text-[10px] px-1.5 py-0"
                           >
-                            {appt.status === "confirmed" ? "Confirmado" : "Pendente"}
+                            {appt.status === "confirmed"
+                              ? "Confirmado"
+                              : appt.status === "cancelled"
+                                ? "Cancelado"
+                                : appt.status === "completed"
+                                  ? "Concluído"
+                                  : "Pendente"}
                           </Badge>
                           <button
-                            onClick={() => toast("Exclusão disponível em breve", "info")}
+                            onClick={() => removeAppointment(appt)}
                             className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Excluir"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -266,6 +307,30 @@ export default function SchedulePage() {
                       </div>
                       <p className="text-sm font-medium text-white">{appt.name}</p>
                       <p className="text-xs text-gray-500">{appt.service}</p>
+                      {appt.status === "pending" && (
+                        <button
+                          onClick={() => updateStatus(appt, "confirmed")}
+                          className="mt-2 flex items-center gap-1 text-xs text-green-400 hover:text-green-300 transition-colors"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar
+                        </button>
+                      )}
+                      {appt.status === "pending" && (
+                        <button
+                          onClick={() => updateStatus(appt, "cancelled")}
+                          className="mt-1 flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 transition-colors"
+                        >
+                          <Ban className="w-3.5 h-3.5" /> Cancelar
+                        </button>
+                      )}
+                      {appt.status === "confirmed" && (
+                        <button
+                          onClick={() => updateStatus(appt, "completed")}
+                          className="mt-2 flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Concluir
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

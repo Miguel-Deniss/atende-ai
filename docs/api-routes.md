@@ -406,6 +406,17 @@
 ---
 
 #### `route.ts`
+- **Caminho**: `src/app/api/schedule/[id]/route.ts`
+- **Métodos HTTP**: `GET`, `PATCH`, `DELETE`
+- **Autenticação**: required + permissão `company:view_schedule` (GET) / `company:manage_schedule` (PATCH/DELETE)
+- **Fluxo (GET)**: `findFirst` por `{ id, companyId, deletedAt: null }`; 404 se não pertencer à empresa (isolamento multi-tenant)
+- **Fluxo (PATCH)**: `{ status }` restrito a `pending | confirmed | cancelled | completed`; atualiza e loga `USER_UPDATE`
+- **Fluxo (DELETE)**: soft-delete (`deletedAt: now`) + log `DATA_DELETE`
+- **Validação**: status whitelist manual
+
+---
+
+#### `route.ts`
 - **Caminho**: `src/app/api/settings/route.ts`
 - **Métodos HTTP**: `GET`, `PUT`
 - **Autenticação**: required
