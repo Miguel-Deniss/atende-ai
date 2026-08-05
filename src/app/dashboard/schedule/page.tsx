@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ChevronLeft, ChevronRight, Clock, X, Check } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Clock, X, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -19,21 +18,13 @@ const monthNames = [
 ];
 
 interface Appointment {
-  id: number;
+  id: string;
   time: string;
   name: string;
   service: string;
-  status: "confirmed" | "pending";
+  status: string;
   date: string;
 }
-
-const defaultAppointments: Appointment[] = [
-  { id: 1, time: "09:00", name: "João Silva", service: "Corte de Cabelo", status: "confirmed", date: "" },
-  { id: 2, time: "10:30", name: "Maria Oliveira", service: "Barba", status: "confirmed", date: "" },
-  { id: 3, time: "14:00", name: "Pedro Santos", service: "Hidratação", status: "pending", date: "" },
-  { id: 4, time: "16:00", name: "Ana Costa", service: "Corte + Barba", status: "confirmed", date: "" },
-  { id: 5, time: "17:30", name: "Lucas Mendes", service: "Corte Infantil", status: "pending", date: "" },
-];
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -48,15 +39,45 @@ export default function SchedulePage() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [selectedDay, setSelectedDay] = useState(today.getDate());
-  const [appointments, setAppointments] = useLocalStorage<Appointment[]>("atendeai_appointments", defaultAppointments);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [newAppt, setNewAppt] = useState({ time: "09:00", name: "", service: "" });
   const { toast } = useToast();
 
   const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
 
+  const loadAppointments = useCallback(
+    async (y: number, m: number) => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/schedule?month=${m + 1}&year=${y}`);
+        if (!res.ok) throw new Error("Erro ao carregar");
+        const json = await res.json();
+        const mapped = (json.data ?? []).map((a: any) => ({
+          ...a,
+          date: new Date(a.date).toISOString().slice(0, 10),
+        }));
+        setAppointments(mapped);
+      } catch {
+        toast("Erro ao carregar agendamentos", "error");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    loadAppointments(year, month);
+  }, [year, month, loadAppointments]);
+
   const dayAppointments = useMemo(
-    () => appointments.filter((a) => a.date === dateKey),
+    () =>
+      appointments
+        .filter((a) => a.date === dateKey)
+        .sort((a, b) => a.time.localeCompare(b.time)),
     [appointments, dateKey]
   );
 
@@ -74,23 +95,33 @@ export default function SchedulePage() {
     else setMonth((m) => m + 1);
   }, [month]);
 
-  const handleNewAppointment = () => {
+  const handleNewAppointment = async () => {
     if (!newAppt.name.trim() || !newAppt.service.trim()) {
       toast("Preencha todos os campos do agendamento", "error");
       return;
     }
-    const appt: Appointment = {
-      id: Date.now(),
-      time: newAppt.time,
-      name: newAppt.name.trim(),
-      service: newAppt.service.trim(),
-      status: "pending",
-      date: dateKey,
-    };
-    setAppointments((prev) => [...prev, appt]);
-    setNewAppt({ time: "09:00", name: "", service: "" });
-    setShowNewModal(false);
-    toast("Agendamento criado com sucesso!");
+    setSaving(true);
+    try {
+      const res = await fetch("/api/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          time: newAppt.time,
+          date: dateKey,
+          name: newAppt.name.trim(),
+          service: newAppt.service.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error("Erro ao criar");
+      setNewAppt({ time: "09:00", name: "", service: "" });
+      setShowNewModal(false);
+      toast("Agendamento criado com sucesso!");
+      await loadAppointments(year, month);
+    } catch {
+      toast("Erro ao criar agendamento", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -197,7 +228,11 @@ export default function SchedulePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {dayAppointments.length === 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                </div>
+              ) : dayAppointments.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="w-12 h-12 rounded-2xl bg-secondary/50 flex items-center justify-center mx-auto mb-3">
                     <CalendarCheck className="w-5 h-5 text-gray-500" />
@@ -207,7 +242,7 @@ export default function SchedulePage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {dayAppointments.sort((a, b) => a.time.localeCompare(b.time)).map((appt) => (
+                  {dayAppointments.map((appt) => (
                     <div
                       key={appt.id}
                       className="p-3 rounded-xl bg-secondary/30 border border-border/30 hover:bg-secondary/50 transition-colors group"
@@ -222,10 +257,7 @@ export default function SchedulePage() {
                             {appt.status === "confirmed" ? "Confirmado" : "Pendente"}
                           </Badge>
                           <button
-                            onClick={() => {
-                              setAppointments((prev) => prev.filter((a) => a.id !== appt.id));
-                              toast("Agendamento removido");
-                            }}
+                            onClick={() => toast("Exclusão disponível em breve", "info")}
                             className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
                           >
                             <X className="w-3 h-3" />
@@ -306,9 +338,9 @@ export default function SchedulePage() {
                   <Button variant="outline" className="flex-1" onClick={() => setShowNewModal(false)}>
                     Cancelar
                   </Button>
-                  <Button className="flex-1" onClick={handleNewAppointment}>
-                    <Check className="w-4 h-4 mr-1" />
-                    Confirmar
+                  <Button className="flex-1" onClick={handleNewAppointment} disabled={saving}>
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 mr-1" />}
+                    {saving ? "Salvando..." : "Confirmar"}
                   </Button>
                 </div>
               </div>

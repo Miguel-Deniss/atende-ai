@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Search, MoreHorizontal, Phone, UserPlus, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -10,41 +10,51 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 interface Client {
-  id: number;
+  id: string;
   name: string;
   phone: string;
-  lastService: string;
+  lastService: string | null;
   date: string;
-  status: "active" | "inactive";
+  status: string;
 }
 
-const defaultClients: Client[] = [
-  { id: 1, name: "Ana Silva", phone: "(11) 99999-0001", lastService: "Corte de Cabelo", date: "15/06/2026", status: "active" },
-  { id: 2, name: "Carlos Lima", phone: "(11) 99999-0002", lastService: "Barba", date: "14/06/2026", status: "active" },
-  { id: 3, name: "Marina Costa", phone: "(11) 99999-0003", lastService: "Hidratação", date: "12/06/2026", status: "active" },
-  { id: 4, name: "João Pedro", phone: "(11) 99999-0004", lastService: "Corte + Barba", date: "10/06/2026", status: "inactive" },
-  { id: 5, name: "Fernanda Santos", phone: "(11) 99999-0005", lastService: "Escova", date: "08/06/2026", status: "active" },
-  { id: 6, name: "Roberto Alves", phone: "(11) 99999-0006", lastService: "Corte Infantil", date: "05/06/2026", status: "active" },
-  { id: 7, name: "Patrícia Lima", phone: "(11) 99999-0007", lastService: "Coloração", date: "03/06/2026", status: "inactive" },
-  { id: 8, name: "Lucas Oliveira", phone: "(11) 99999-0008", lastService: "Barba Completa", date: "01/06/2026", status: "active" },
-  { id: 9, name: "Beatriz Rocha", phone: "(11) 99999-0009", lastService: "Corte Feminino", date: "28/05/2026", status: "active" },
-  { id: 10, name: "Gabriel Souza", phone: "(11) 99999-0010", lastService: "Barba Tradicional", date: "25/05/2026", status: "inactive" },
-];
-
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("pt-BR");
+function formatDate(date: string | Date): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("pt-BR");
 }
 
 export default function ClientsPage() {
   const { toast } = useToast();
-  const [clients, setClients] = useLocalStorage<Client[]>("atendeai_clients", defaultClients);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [newClient, setNewClient] = useState({ name: "", phone: "", lastService: "" });
   const [saving, setSaving] = useState(false);
+
+  const loadClients = useCallback(
+    async (term: string) => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/clients?limit=100&search=${encodeURIComponent(term)}`);
+        if (!res.ok) throw new Error("Erro ao carregar");
+        const json = await res.json();
+        setClients(json.data.clients ?? []);
+      } catch {
+        toast("Erro ao carregar clientes", "error");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    const t = setTimeout(() => loadClients(search), 300);
+    return () => clearTimeout(t);
+  }, [search, loadClients]);
 
   const filtered = useMemo(
     () =>
@@ -52,7 +62,7 @@ export default function ClientsPage() {
         (c) =>
           c.name.toLowerCase().includes(search.toLowerCase()) ||
           c.phone.includes(search) ||
-          c.lastService.toLowerCase().includes(search.toLowerCase())
+          (c.lastService ?? "").toLowerCase().includes(search.toLowerCase())
       ),
     [clients, search]
   );
@@ -63,20 +73,26 @@ export default function ClientsPage() {
       return;
     }
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 600));
-    const client: Client = {
-      id: Date.now(),
-      name: newClient.name.trim(),
-      phone: newClient.phone.trim(),
-      lastService: newClient.lastService.trim() || "Primeiro atendimento",
-      date: formatDate(new Date()),
-      status: "active",
-    };
-    setClients((prev) => [client, ...prev]);
-    setNewClient({ name: "", phone: "", lastService: "" });
-    setSaving(false);
-    setModalOpen(false);
-    toast("Cliente cadastrado com sucesso!");
+    try {
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newClient.name.trim(),
+          phone: newClient.phone.trim(),
+          lastService: newClient.lastService.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Erro ao criar");
+      setNewClient({ name: "", phone: "", lastService: "" });
+      setModalOpen(false);
+      toast("Cliente cadastrado com sucesso!");
+      await loadClients(search);
+    } catch {
+      toast("Erro ao cadastrar cliente", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -115,7 +131,11 @@ export default function ClientsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {filtered.length === 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center mx-auto mb-4">
                   <Search className="w-6 h-6 text-gray-500" />
@@ -164,10 +184,10 @@ export default function ClientsPage() {
                           </button>
                         </td>
                         <td className="py-3 px-2 hidden md:table-cell">
-                          <span className="text-sm text-gray-400">{client.lastService}</span>
+                          <span className="text-sm text-gray-400">{client.lastService ?? "—"}</span>
                         </td>
                         <td className="py-3 px-2 hidden md:table-cell">
-                          <span className="text-sm text-gray-400">{client.date}</span>
+                          <span className="text-sm text-gray-400">{formatDate(client.date)}</span>
                         </td>
                         <td className="py-3 px-2">
                           <Badge variant={client.status === "active" ? "success" : "secondary"}>
@@ -176,11 +196,8 @@ export default function ClientsPage() {
                         </td>
                         <td className="py-3 px-2">
                           <button
-                            onClick={() => {
-                              setClients((prev) => prev.filter((c) => c.id !== client.id));
-                              toast("Cliente removido da lista");
-                            }}
-                            className="p-1 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={() => toast("Edição disponível em breve", "info")}
+                            className="p-1 rounded-lg text-gray-500 hover:text-white hover:bg-secondary/50 opacity-0 group-hover:opacity-100 transition-all"
                           >
                             <MoreHorizontal className="w-4 h-4" />
                           </button>
