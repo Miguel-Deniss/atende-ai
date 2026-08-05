@@ -14,16 +14,16 @@ import { useAuth } from "@/contexts/AuthContext";
 interface ProfileData {
   name: string;
   email: string;
-  phone: string;
+  phone: string | null;
   role: string;
   avatar: string;
 }
 
 const defaults: ProfileData = {
-  name: "Admin",
-  email: "admin@barbeariavintage.com",
-  phone: "(11) 99999-8888",
-  role: "Proprietário",
+  name: "",
+  email: "",
+  phone: "",
+  role: "",
   avatar: "",
 };
 
@@ -40,18 +40,31 @@ export default function ProfilePage() {
   const emailVerified = user?.emailVerified ?? true;
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("atendeai_profile");
-      if (stored) setData(JSON.parse(stored));
-    } catch { /* ignore */ }
-    setLoaded(true);
-  }, []);
+    (async () => {
+      try {
+        const res = await fetch("/api/profile");
+        if (!res.ok) throw new Error("Erro ao carregar");
+        const json = await res.json();
+        setData({
+          name: json.data.name ?? "",
+          email: json.data.email ?? "",
+          phone: json.data.phone ?? "",
+          role: json.data.role ?? "",
+          avatar: json.data.avatarUrl ?? "",
+        });
+      } catch {
+        toast("Erro ao carregar perfil", "error");
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, [toast]);
 
   const update = <K extends keyof ProfileData>(key: K, value: ProfileData[K]) => {
     setData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!data.name.trim() || !data.email.trim()) {
       toast("Nome e email são obrigatórios", "error");
       return;
@@ -61,11 +74,25 @@ export default function ProfilePage() {
       return;
     }
     setSaving(true);
-    setTimeout(() => {
-      localStorage.setItem("atendeai_profile", JSON.stringify(data));
-      setSaving(false);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.name.trim(),
+          email: data.email.trim(),
+          phone: data.phone || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Erro ao salvar");
+      const json = await res.json();
+      setData((prev) => ({ ...prev, role: json.data.role ?? prev.role }));
       toast("Perfil atualizado com sucesso!");
-    }, 600);
+    } catch {
+      toast("Erro ao salvar perfil", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,7 +105,7 @@ export default function ProfilePage() {
     reader.readAsDataURL(file);
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     const errs: Record<string, string> = {};
     if (!passwordForm.current) errs.current = "Senha atual é obrigatória";
     if (!passwordForm.newPwd) errs.newPwd = "Nova senha é obrigatória";
@@ -88,15 +115,37 @@ export default function ProfilePage() {
     if (Object.keys(errs).length > 0) return;
 
     setSavingPassword(true);
-    setTimeout(() => {
-      setSavingPassword(false);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: true,
+          currentPassword: passwordForm.current,
+          newPassword: passwordForm.newPwd,
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || "Erro ao alterar senha");
+      }
       setPasswordForm({ current: "", newPwd: "", confirm: "" });
       setPasswordErrors({});
       toast("Senha alterada com sucesso!");
-    }, 800);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Erro ao alterar senha", "error");
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
-  if (!loaded) return null;
+  if (!loaded) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-2xl">
@@ -176,7 +225,7 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
-                <Input id="phone" value={data.phone} onChange={(e) => update("phone", e.target.value)} />
+                <Input id="phone" value={data.phone ?? ""} onChange={(e) => update("phone", e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Cargo</Label>
