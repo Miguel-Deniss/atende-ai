@@ -15,6 +15,12 @@ import {
 } from "./conversation-state";
 import { resolveAppointmentDate } from "./appointment-date";
 import { createLog } from "@/lib/logger";
+import {
+  AIError,
+  classifyAIError,
+  logAIError,
+  type AIErrorKind,
+} from "./errors";
 import type {
   AIMessage,
   CompanyContext,
@@ -50,6 +56,8 @@ export interface ProcessMessageResult {
   response: string;
   state: ConversationState;
   appointmentPersisted: boolean;
+  recovered?: boolean;
+  aiErrorKind?: AIErrorKind;
 }
 
 export async function processMessage(
@@ -125,39 +133,58 @@ export async function processMessage(
 
   const prompt = buildPrompt({ state, company, history });
 
-  const response = await deps.llm([
-    { role: "system", content: prompt.system },
-    ...prompt.messages,
-  ]);
-
-  const inventedIssue = containsInventedInfo(response, company);
-  if (inventedIssue) {
-    throw new Error("A IA gerou resposta com informacoes incorretas.");
-  }
-
-  if (isGarbageResponse(response)) {
-    throw new Error("A IA gerou resposta invalida.");
-  }
-
+  let response: string;
   let appointmentPersisted = false;
+  let recovered = false;
+  let aiErrorKind: AIErrorKind | undefined;
 
-  if (
-    shouldPersist &&
-    deps.persistAppointment &&
-    state.slots.service &&
-    state.slots.date &&
-    state.slots.time
-  ) {
-    await deps.persistAppointment(
-      {
-        service: state.slots.service,
-        date: state.slots.date,
-        time: state.slots.time,
-        name: state.slots.name ?? knownName ?? "Cliente",
-      },
-      conversationId
-    );
-    appointmentPersisted = true;
+  try {
+    const llmResponse = await deps.llm([
+      { role: "system", content: prompt.system },
+      ...prompt.messages,
+    ]);
+
+    if (containsInventedInfo(llmResponse, company)) {
+      throw new AIError(
+        "A IA gerou resposta com informacoes incorretas.",
+        "INVALID_RESPONSE"
+      );
+    }
+
+    if (isGarbageResponse(llmResponse)) {
+      throw new AIError("A IA gerou resposta invalida.", "INVALID_RESPONSE");
+    }
+
+    if (
+      shouldPersist &&
+      deps.persistAppointment &&
+      state.slots.service &&
+      state.slots.date &&
+      state.slots.time
+    ) {
+      await deps.persistAppointment(
+        {
+          service: state.slots.service,
+          date: state.slots.date,
+          time: state.slots.time,
+          name: state.slots.name ?? knownName ?? "Cliente",
+        },
+        conversationId
+      );
+      appointmentPersisted = true;
+    }
+
+    response = llmResponse;
+  } catch (error) {
+    const aiError = classifyAIError(error);
+    aiErrorKind = aiError.kind;
+    recovered = true;
+    response = aiError.userMessage;
+
+    logAIError(aiError, {
+      conversationId,
+      action: "llm_fallback_reply",
+    });
   }
 
   await deps.saveMessage({
@@ -168,7 +195,7 @@ export async function processMessage(
 
   await deps.saveState(conversationId, state);
 
-  return { response, state, appointmentPersisted };
+  return { response, state, appointmentPersisted, recovered, aiErrorKind };
 }
 
 export function createDefaultDeps(): ConversationManagerDeps {

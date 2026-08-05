@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { requirePermission } from "@/lib/auth/api-guard";
 import { generateAIResponse } from "@/lib/ai/assistant";
 import { loadConversationContext } from "@/lib/ai/context-loader";
+import { classifyAIError, logAIError } from "@/lib/ai/errors";
 import { deliverWhatsAppMessage } from "@/lib/whatsapp/deliver";
 import { publish } from "@/lib/realtime";
 import { enforceBilling } from "@/lib/billing/subscription";
@@ -145,31 +146,8 @@ export async function POST(
       handled,
     });
   } catch (error) {
-    console.error(error);
-
-    const message = error instanceof Error ? error.message : "";
-
-    if (
-      message.includes("informacoes incorretas") ||
-      message.includes("resposta invalida")
-    ) {
-      return errorResponse(
-        "A IA gerou resposta inválida. Tente novamente.",
-        500
-      );
-    }
-
-    if (
-      message.includes("agendamento") ||
-      message.includes("Horario") ||
-      message.includes("resolver a data")
-    ) {
-      return errorResponse(
-        "Não foi possível salvar o agendamento. Tente novamente.",
-        500
-      );
-    }
-
-    return errorResponse("Erro interno do servidor", 500);
+    logAIError(error, { action: "message_route" });
+    const aiError = classifyAIError(error);
+    return errorResponse(aiError.userMessage, 500);
   }
 }

@@ -1,6 +1,7 @@
 import type { LLMMessage } from "./types";
 import { openaiCircuitBreaker } from "@/lib/resilience/circuit-breaker";
 import { logger } from "@/lib/logger/structured";
+import { classifyAIError } from "./errors";
 
 const OLLAMA_URL =
   process.env.OLLAMA_URL ?? "http://localhost:11434";
@@ -96,26 +97,30 @@ async function chatWithOpenAI(messages: LLMMessage[]): Promise<string> {
 export async function chat(messages: LLMMessage[]): Promise<string> {
   const provider = process.env.AI_PROVIDER ?? "ollama";
 
-  if (provider === "openai") {
-    if (!hasOpenAIConfig()) {
-      throw new Error("AI_PROVIDER=openai mas OPENAI_API_KEY não configurado");
-    }
-    return openaiCircuitBreaker.call(() => chatWithOpenAI(messages));
-  }
-
   try {
-    return await chatWithOllama(messages);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (hasOpenAIConfig()) {
-      logger.warn(`Ollama falhou, usando fallback OpenAI: ${message}`, {
-        action: "llm_fallback_openai",
-        metadata: { provider, ollamaError: message },
-      });
-      return openaiCircuitBreaker.call(() => chatWithOpenAI(messages));
+    if (provider === "openai") {
+      if (!hasOpenAIConfig()) {
+        throw new Error("AI_PROVIDER=openai mas OPENAI_API_KEY não configurado");
+      }
+      return await openaiCircuitBreaker.call(() => chatWithOpenAI(messages));
     }
 
-    throw error;
+    try {
+      return await chatWithOllama(messages);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (hasOpenAIConfig()) {
+        logger.warn(`Ollama falhou, usando fallback OpenAI: ${message}`, {
+          action: "llm_fallback_openai",
+          metadata: { provider, ollamaError: message },
+        });
+        return openaiCircuitBreaker.call(() => chatWithOpenAI(messages));
+      }
+
+      throw error;
+    }
+  } catch (error) {
+    throw classifyAIError(error);
   }
 }

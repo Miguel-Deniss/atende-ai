@@ -225,19 +225,48 @@ describe("processMessage — intents simples", () => {
     ]);
   });
 
-  it("deve barrar resposta com informação inventada", async () => {
+  it("deve responder com fallback amigável quando a IA inventa informação", async () => {
     const h = createHarness("João");
     h.deps.llm = async () => "Também fazemos manicure por R$ 50.";
-    await expect(h.send("quais serviços têm?")).rejects.toThrow(
-      "informacoes incorretas"
-    );
+    const r = await h.send("quais serviços têm?");
+    expect(r.recovered).toBe(true);
+    expect(r.aiErrorKind).toBe("INVALID_RESPONSE");
+    expect(r.response).toContain("Não consegui");
+    expect(h.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
   });
 
-  it("deve barrar resposta com autorreferência de IA (garbage)", async () => {
+  it("deve responder com fallback amigável quando a IA se autorreferencia (garbage)", async () => {
     const h = createHarness("João");
     h.deps.llm = async () => "Sou um modelo de linguagem e não posso agendar.";
-    await expect(h.send("quero marcar uma barba")).rejects.toThrow(
-      "resposta invalida"
-    );
+    const r = await h.send("quero marcar uma barba");
+    expect(r.recovered).toBe(true);
+    expect(r.aiErrorKind).toBe("INVALID_RESPONSE");
+    expect(r.response).toContain("Não consegui");
+  });
+
+  it("deve preservar a mensagem do usuário e responder com fallback quando o LLM falha (quota)", async () => {
+    const h = createHarness("João");
+    h.deps.llm = async () => {
+      throw new Error("OpenAI HTTP 429: insufficient_quota");
+    };
+    const r = await h.send("quero marcar uma barba");
+    expect(r.recovered).toBe(true);
+    expect(r.aiErrorKind).toBe("QUOTA_EXCEEDED");
+    expect(r.appointmentPersisted).toBe(false);
+    expect(h.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
+    expect(h.messages[0].content).toBe("quero marcar uma barba");
+    expect(h.messages[1].content).toContain("indisponível");
+  });
+
+  it("deve responder com fallback quando o LLM está offline e não há fallback configurado", async () => {
+    const h = createHarness("João");
+    h.deps.llm = async () => {
+      throw new Error("fetch failed: ECONNREFUSED");
+    };
+    const r = await h.send("Olá");
+    expect(r.recovered).toBe(true);
+    expect(r.aiErrorKind).toBe("PROVIDER_OFFLINE");
+    expect(r.response).toContain("indisponível");
+    expect(h.messages).toHaveLength(2);
   });
 });
