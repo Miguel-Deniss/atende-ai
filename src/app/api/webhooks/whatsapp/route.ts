@@ -11,7 +11,7 @@ import { guardRateLimit, clientIp } from "@/lib/rate-limit/with-rate-limit";
 import type { WhatsAppWebhookPayload } from "@/lib/whatsapp/types";
 
 export async function POST(request: NextRequest) {
-  const blocked = guardRateLimit(
+  const blocked = await guardRateLimit(
     request,
     `webhook-whatsapp:${clientIp(request)}`,
     "webhook"

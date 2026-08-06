@@ -8,15 +8,15 @@ import {
 
 type Kind = "api" | "webhook";
 
-export function guardRateLimit(
+export async function guardRateLimit(
   request: NextRequest,
   key: string,
   kind: Kind = "api"
-): Response | null {
+): Promise<Response | null> {
   const check =
     kind === "webhook"
-      ? checkWebhookRateLimit(key)
-      : checkApiRateLimit(key);
+      ? await checkWebhookRateLimit(key)
+      : await checkApiRateLimit(key);
 
   if (check.allowed) {
     return null;

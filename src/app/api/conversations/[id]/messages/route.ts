@@ -75,7 +75,7 @@ export async function POST(
       return errorResponse(`Acesso bloqueado: ${billing.reason}`, 402);
     }
 
-    const blocked = guardRateLimit(
+    const blocked = await guardRateLimit(
       request,
       `messages:${user.companyId}:${user.id}`
     );

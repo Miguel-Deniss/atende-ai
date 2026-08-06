@@ -8,37 +8,35 @@ import {
 } from "@/lib/rate-limit";
 
 describe("Rate Limit", () => {
-  beforeEach(() => {
-    resetLoginAttempts("test-key");
+  beforeEach(async () => {
+    await resetLoginAttempts("test-key");
   });
 
-  it("should allow requests under the limit", () => {
-    const result = checkLoginRateLimit("user-1");
+  it("should allow requests under the limit", async () => {
+    const result = await checkLoginRateLimit("user-1");
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBeGreaterThanOrEqual(4);
   });
 
-  it("should block requests exceeding the login limit", () => {
+  it("should block requests exceeding the login limit", async () => {
     const key = "brute-force-user";
 
     for (let i = 0; i < 5; i++) {
-      const result = checkLoginRateLimit(key);
-      if (i < 5) {
-        expect(result.allowed).toBe(true);
-      }
+      const result = await checkLoginRateLimit(key);
+      expect(result.allowed).toBe(true);
     }
 
-    const blocked = checkLoginRateLimit(key);
+    const blocked = await checkLoginRateLimit(key);
     expect(blocked.allowed).toBe(false);
     expect(blocked.remaining).toBe(0);
   });
 
-  it("should decrement remaining count", () => {
+  it("should decrement remaining count", async () => {
     const key = "rate-test";
-    const first = checkLoginRateLimit(key);
+    const first = await checkLoginRateLimit(key);
     expect(first.remaining).toBe(4);
 
-    const second = checkLoginRateLimit(key);
+    const second = await checkLoginRateLimit(key);
     expect(second.remaining).toBe(3);
   });
 
@@ -46,45 +44,45 @@ describe("Rate Limit", () => {
     const key = "window-test";
 
     for (let i = 0; i < 5; i++) {
-      checkLoginRateLimit(key);
+      await checkLoginRateLimit(key);
     }
 
-    let blocked = checkLoginRateLimit(key);
+    let blocked = await checkLoginRateLimit(key);
     expect(blocked.allowed).toBe(false);
 
-    resetLoginAttempts(key);
+    await resetLoginAttempts(key);
 
-    const reset = checkLoginRateLimit(key);
+    const reset = await checkLoginRateLimit(key);
     expect(reset.allowed).toBe(true);
     expect(reset.remaining).toBe(4);
   });
 
-  it("should handle multiple keys independently", () => {
+  it("should handle multiple keys independently", async () => {
     for (let i = 0; i < 5; i++) {
-      checkLoginRateLimit("user-a");
+      await checkLoginRateLimit("user-a");
     }
-    expect(checkLoginRateLimit("user-a").allowed).toBe(false);
+    expect((await checkLoginRateLimit("user-a")).allowed).toBe(false);
 
-    const userB = checkLoginRateLimit("user-b");
+    const userB = await checkLoginRateLimit("user-b");
     expect(userB.allowed).toBe(true);
     expect(userB.remaining).toBe(4);
   });
 
-  it("should apply default rate limit", () => {
+  it("should apply default rate limit", async () => {
     const key = "default-test";
     for (let i = 0; i < 30; i++) {
-      expect(checkDefaultRateLimit(key).allowed).toBe(true);
+      expect((await checkDefaultRateLimit(key)).allowed).toBe(true);
     }
-    const blocked = checkDefaultRateLimit(key);
+    const blocked = await checkDefaultRateLimit(key);
     expect(blocked.remaining).toBe(0);
   });
 
-  it("should apply api rate limit", () => {
+  it("should apply api rate limit", async () => {
     const key = "api-test";
     for (let i = 0; i < 60; i++) {
-      expect(checkApiRateLimit(key).allowed).toBe(true);
+      expect((await checkApiRateLimit(key)).allowed).toBe(true);
     }
-    expect(checkApiRateLimit(key).allowed).toBe(false);
+    expect((await checkApiRateLimit(key)).allowed).toBe(false);
   });
 
   it("getRateLimitHeaders should return correct headers", () => {

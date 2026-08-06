@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     if (response) return response;
 
     const ip = request.headers.get("x-forwarded-for") || "unknown";
-    const rateCheck = checkDefaultRateLimit(`api:${user.companyId}:${ip}`);
+    const rateCheck = await checkDefaultRateLimit(`api:${user.companyId}:${ip}`);
     if (!rateCheck.allowed) {
       return new Response(
         JSON.stringify({ success: false, error: "Muitas requisições" }),

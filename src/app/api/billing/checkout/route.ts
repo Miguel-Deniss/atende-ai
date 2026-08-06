@@ -27,7 +27,7 @@ const PAID_PLANS = ["STARTER", "PRO", "BUSINESS", "ENTERPRISE"];
 
 export async function POST(request: NextRequest) {
   try {
-    const blocked = guardRateLimit(request, `checkout:${clientIp(request)}`);
+    const blocked = await guardRateLimit(request, `checkout:${clientIp(request)}`);
     if (blocked) {
       return blocked;
     }

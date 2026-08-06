@@ -9,7 +9,7 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const rateLimit = guardRateLimit(request, `public-booking:${clientIp(request)}`);
+    const rateLimit = await guardRateLimit(request, `public-booking:${clientIp(request)}`);
     if (rateLimit) return rateLimit;
 
     const { slug } = await params;

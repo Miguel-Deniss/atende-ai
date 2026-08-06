@@ -6,30 +6,30 @@ function makeRequest(headers: Record<string, string> = {}): any {
 }
 
 describe("guardRateLimit", () => {
-  it("permite dentro do limite (api)", () => {
+  it("permite dentro do limite (api)", async () => {
     for (let i = 0; i < 60; i++) {
-      expect(guardRateLimit(makeRequest(), "test:api")).toBeNull();
+      expect(await guardRateLimit(makeRequest(), "test:api")).toBeNull();
     }
   });
 
-  it("bloqueia após estourar o limite de api", () => {
-    for (let i = 0; i < 60; i++) guardRateLimit(makeRequest(), "test:api2");
-    const blocked = guardRateLimit(makeRequest(), "test:api2");
+  it("bloqueia após estourar o limite de api", async () => {
+    for (let i = 0; i < 60; i++) await guardRateLimit(makeRequest(), "test:api2");
+    const blocked = await guardRateLimit(makeRequest(), "test:api2");
     expect(blocked).not.toBeNull();
     expect(blocked!.status).toBe(429);
   });
 
-  it("usa limite maior para webhook", () => {
+  it("usa limite maior para webhook", async () => {
     for (let i = 0; i < 300; i++) {
-      expect(guardRateLimit(makeRequest(), "test:webhook", "webhook")).toBeNull();
+      expect(await guardRateLimit(makeRequest(), "test:webhook", "webhook")).toBeNull();
     }
-    const blocked = guardRateLimit(makeRequest(), "test:webhook", "webhook");
+    const blocked = await guardRateLimit(makeRequest(), "test:webhook", "webhook");
     expect(blocked).not.toBeNull();
   });
 
-  it("resposta bloqueada carrega headers de rate limit", () => {
-    for (let i = 0; i < 60; i++) guardRateLimit(makeRequest(), "test:hdrs");
-    const blocked = guardRateLimit(makeRequest(), "test:hdrs");
+  it("resposta bloqueada carrega headers de rate limit", async () => {
+    for (let i = 0; i < 60; i++) await guardRateLimit(makeRequest(), "test:hdrs");
+    const blocked = await guardRateLimit(makeRequest(), "test:hdrs");
     expect(blocked!.headers.get("X-RateLimit-Remaining")).toBe("0");
   });
 });

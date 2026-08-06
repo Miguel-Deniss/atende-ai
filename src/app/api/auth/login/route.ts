@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
     const userAgent = request.headers.get("user-agent") || undefined;
 
-    const rateCheck = checkLoginRateLimit(`login:${ip}`);
+    const rateCheck = await checkLoginRateLimit(`login:${ip}`);
     const rateHeaders = getRateLimitHeaders(rateCheck);
 
     if (!rateCheck.allowed) {
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    resetLoginAttempts(`login:${ip}`);
+    await resetLoginAttempts(`login:${ip}`);
 
     await createLog({
       action: "LOGIN_SUCCESS",

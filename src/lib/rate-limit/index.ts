@@ -1,82 +1,100 @@
-import { prisma } from "@/lib/db/prisma";
+import { logger } from "@/lib/logger/structured";
+import {
+  getRateLimitStore,
+  memoryStore,
+} from "./store";
 
-interface RateLimitConfig {
+export interface RateLimitCheck {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+}
+
+export interface RateLimitConfig {
   windowMs: number;
   maxRequests: number;
 }
 
-const defaultConfig: RateLimitConfig = {
-  windowMs: 60 * 1000,
-  maxRequests: 30,
+type Kind = "login" | "default" | "api" | "webhook";
+
+const configs: Record<Kind, RateLimitConfig> = {
+  login: {
+    windowMs: 15 * 60 * 1000,
+    maxRequests: 5,
+  },
+  default: {
+    windowMs: 60 * 1000,
+    maxRequests: 30,
+  },
+  api: {
+    windowMs: 60 * 1000,
+    maxRequests: 60,
+  },
+  webhook: {
+    windowMs: 60 * 1000,
+    maxRequests: 300,
+  },
 };
 
-const loginConfig: RateLimitConfig = {
-  windowMs: 15 * 60 * 1000,
-  maxRequests: 5,
-};
+async function checkLimit(
+  kind: Kind,
+  key: string
+): Promise<RateLimitCheck> {
+  const config = configs[kind];
 
-const apiConfig: RateLimitConfig = {
-  windowMs: 60 * 1000,
-  maxRequests: 60,
-};
-
-const webhookConfig: RateLimitConfig = {
-  windowMs: 60 * 1000,
-  maxRequests: 300,
-};
-
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-const apiAttempts = new Map<string, { count: number; resetAt: number }>();
-const webhookAttempts = new Map<string, { count: number; resetAt: number }>();
-
-function checkLimit(
-  store: Map<string, { count: number; resetAt: number }>,
-  key: string,
-  config: RateLimitConfig
-): { allowed: boolean; remaining: number; resetAt: number } {
-  const now = Date.now();
-  let entry = store.get(key);
-
-  if (!entry || entry.resetAt < now) {
-    entry = { count: 0, resetAt: now + config.windowMs };
-    store.set(key, entry);
+  try {
+    const bucket = await getRateLimitStore().increment(key, config.windowMs);
+    return {
+      allowed: bucket.count <= config.maxRequests,
+      remaining: Math.max(0, config.maxRequests - bucket.count),
+      resetAt: bucket.resetAt,
+    };
+  } catch (error) {
+    logger.warn(
+      "Rate limit distribuído indisponível, usando armazenamento em memória",
+      {
+        action: "rate_limit_fallback_memory",
+        error: error instanceof Error ? error.message : String(error),
+        metadata: { kind, key },
+      }
+    );
+    const bucket = await memoryStore.increment(key, config.windowMs);
+    return {
+      allowed: bucket.count <= config.maxRequests,
+      remaining: Math.max(0, config.maxRequests - bucket.count),
+      resetAt: bucket.resetAt,
+    };
   }
-
-  entry.count++;
-
-  return {
-    allowed: entry.count <= config.maxRequests,
-    remaining: Math.max(0, config.maxRequests - entry.count),
-    resetAt: entry.resetAt,
-  };
 }
 
-export function checkLoginRateLimit(
-  key: string
-): { allowed: boolean; remaining: number; resetAt: number } {
-  return checkLimit(loginAttempts, key, loginConfig);
+export function checkLoginRateLimit(key: string): Promise<RateLimitCheck> {
+  return checkLimit("login", key);
 }
 
-export function checkApiRateLimit(
-  key: string
-): { allowed: boolean; remaining: number; resetAt: number } {
-  return checkLimit(apiAttempts, key, apiConfig);
+export function checkApiRateLimit(key: string): Promise<RateLimitCheck> {
+  return checkLimit("api", key);
 }
 
-export function checkDefaultRateLimit(
-  key: string
-): { allowed: boolean; remaining: number; resetAt: number } {
-  return checkLimit(apiAttempts, key, defaultConfig);
+export function checkDefaultRateLimit(key: string): Promise<RateLimitCheck> {
+  return checkLimit("default", key);
 }
 
-export function checkWebhookRateLimit(
-  key: string
-): { allowed: boolean; remaining: number; resetAt: number } {
-  return checkLimit(webhookAttempts, key, webhookConfig);
+export function checkWebhookRateLimit(key: string): Promise<RateLimitCheck> {
+  return checkLimit("webhook", key);
 }
 
-export function resetLoginAttempts(key: string): void {
-  loginAttempts.delete(key);
+export async function resetLoginAttempts(key: string): Promise<void> {
+  const config = configs.login;
+  try {
+    await getRateLimitStore().reset(key, config.windowMs);
+  } catch (error) {
+    logger.warn("Falha ao resetar rate limit no armazenamento distribuído", {
+      action: "rate_limit_reset_failed",
+      error: error instanceof Error ? error.message : String(error),
+      metadata: { key },
+    });
+    await memoryStore.reset(key);
+  }
 }
 
 export function getRateLimitHeaders(
@@ -84,6 +102,8 @@ export function getRateLimitHeaders(
 ): Record<string, string> {
   return {
     "X-RateLimit-Remaining": String(config.remaining),
-    "X-RateLimit-Reset": String(Math.ceil((config.resetAt - Date.now()) / 1000)),
+    "X-RateLimit-Reset": String(
+      Math.ceil((config.resetAt - Date.now()) / 1000)
+    ),
   };
 }
