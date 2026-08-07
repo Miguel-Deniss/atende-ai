@@ -3,13 +3,14 @@ import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { successResponse, errorResponse, unauthorizedResponse, notFoundResponse } from "@/lib/auth/api-response";
 import { validateFileAccess, validateFileToken } from "@/lib/storage/access";
+import { logger } from "@/lib/logger/structured";
 import { readFile } from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
-    const { id } = await params;
     const token = request.nextUrl.searchParams.get("token");
     const user = await getCurrentUser();
 
@@ -55,7 +56,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         "X-Content-Type-Options": "nosniff",
       },
     });
-  } catch {
-    return errorResponse("Erro interno do servidor", 500);
+  } catch (error) {
+    logger.error("Falha ao servir arquivo", {
+      action: "file_serving_failed",
+      error: error instanceof Error ? error.message : String(error),
+      metadata: { uploadId: id },
+    });
+    return errorResponse("Não foi possível carregar o arquivo.", 500);
   }
 }
