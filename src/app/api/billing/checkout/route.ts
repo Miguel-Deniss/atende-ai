@@ -6,19 +6,14 @@ import {
 } from "@/lib/auth/api-response";
 import { checkoutSchema } from "@/lib/validators/auth";
 import { getPlanByCode } from "@/lib/billing/plans";
-import {
-  validateCoupon,
-  computeDiscount,
-  incrementCouponUsage,
-} from "@/lib/billing/coupons";
-import {
-  createOrUpdateSubscription,
-  recordBilling,
-} from "@/lib/billing/subscription";
+import { validateCoupon, computeDiscount } from "@/lib/billing/coupons";
 import {
   createCheckoutSession,
   getOrCreateStripeCustomer,
+  getMissingStripePriceIds,
   isStripeConfigured,
+  StripeConfigError,
+  type CheckoutResult,
 } from "@/lib/billing/stripe";
 import { prisma } from "@/lib/db/prisma";
 import { guardRateLimit, clientIp } from "@/lib/rate-limit/with-rate-limit";
@@ -52,6 +47,24 @@ export async function POST(request: NextRequest) {
       return errorResponse("Plano não encontrado", 404);
     }
 
+    if (!isStripeConfigured()) {
+      return errorResponse(
+        "Os pagamentos ainda não estão configurados. Tente novamente em instantes.",
+        503
+      );
+    }
+
+    const missingPrices = getMissingStripePriceIds();
+    if (
+      missingPrices.length > 0 &&
+      missingPrices.includes(planCode)
+    ) {
+      return errorResponse(
+        `Checkout indisponível: falta configurar o Preço (Price ID) do plano ${planCode}.`,
+        503
+      );
+    }
+
     let couponInfo: Awaited<ReturnType<typeof validateCoupon>>["coupon"];
 
     if (parsed.data.couponCode) {
@@ -74,50 +87,6 @@ export async function POST(request: NextRequest) {
       : 0;
 
     const amount = Math.max(0, plan.price - discount);
-
-    if (!isStripeConfigured()) {
-      const status = "ACTIVE";
-
-      if (couponInfo) {
-        await incrementCouponUsage(couponInfo.id);
-      }
-
-      const subscription = await createOrUpdateSubscription({
-        companyId: user!.companyId,
-        planId: plan.id,
-        planCode: plan.code,
-        status,
-        couponId: couponInfo?.id ?? null,
-        trialDays: plan.trialDays,
-        amount,
-        userId: user!.id,
-        logAction: amount === 0 ? "SUBSCRIPTION_CREATED" : "SUBSCRIPTION_UPGRADE",
-        description: `Assinatura ativada (modo demonstração): ${plan.name}`,
-      });
-
-      await recordBilling({
-        companyId: user!.companyId,
-        subscriptionId: subscription.subscription.id,
-        action: "PAYMENT_SUCCESS",
-        amount,
-        status: "paid",
-        description:
-          amount === 0
-            ? "Pagamento não requerido (valor zero / cupom integral)"
-            : `Pagamento simulado aprovado: ${plan.name}`,
-        userId: user!.id,
-        metadata: { mode: "demo", coupon: couponInfo?.code, discount },
-      });
-
-      return successResponse({
-        mode: "demo",
-        amount,
-        discount,
-        status: subscription.subscription.status,
-        nextBillingDate: subscription.subscription.nextBillingDate,
-        planCode: plan.code,
-      });
-    }
 
     const admin = await prisma.user.findFirst({
       where: { companyId: user!.companyId, role: "ADMIN", deletedAt: null },
@@ -145,41 +114,35 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const checkout = await createCheckoutSession({
-      companyId: user!.companyId,
-      customerId,
-      planCode: plan.code,
-      amount,
-      couponCode: parsed.data.couponCode,
-      successUrl: `${process.env.APP_URL ?? "http://localhost:3000"}/dashboard/subscription?checkout=success`,
-      cancelUrl: `${process.env.APP_URL ?? "http://localhost:3000"}/dashboard/subscription?checkout=cancel`,
-      email: admin?.email ?? user!.email,
-      companyName: company?.name ?? "Cliente AtendeAI",
-    });
-
-    const subscription = await createOrUpdateSubscription({
-      companyId: user!.companyId,
-      planId: plan.id,
-      planCode: plan.code,
-      status: "INCOMPLETE",
-      couponId: couponInfo?.id ?? null,
-      trialDays: plan.trialDays,
-      amount,
-      userId: user!.id,
-      description: `Checkout iniciado: ${plan.name}`,
-      stripeCustomerId: customerId,
-    });
+    let checkout: CheckoutResult;
+    try {
+      checkout = await createCheckoutSession({
+        companyId: user!.companyId,
+        customerId,
+        planCode: plan.code,
+        amount,
+        couponCode: parsed.data.couponCode,
+        successUrl: `${process.env.APP_URL ?? "http://localhost:3000"}/dashboard/subscription?checkout=success`,
+        cancelUrl: `${process.env.APP_URL ?? "http://localhost:3000"}/dashboard/subscription?checkout=cancel`,
+        email: admin?.email ?? user!.email,
+        companyName: company?.name ?? "Cliente AtendeAI",
+      });
+    } catch (error) {
+      if (error instanceof StripeConfigError) {
+        return errorResponse(error.message, 503);
+      }
+      console.error(error);
+      return errorResponse("Falha ao criar o checkout no Stripe. Tente novamente.", 502);
+    }
 
     return successResponse({
       mode: "stripe",
       url: checkout.url,
       checkoutSessionId: checkout.checkoutSessionId,
       amount,
-      status: subscription.subscription.status,
     });
   } catch (error) {
     console.error(error);
     return errorResponse("Erro interno do servidor", 500);
   }
 }
-

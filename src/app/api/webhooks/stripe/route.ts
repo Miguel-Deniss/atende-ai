@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { errorResponse } from "@/lib/auth/api-response";
-import { createLog } from "@/lib/logger";
+import { logSystemEvent } from "@/lib/logger";
 import { getStripeClient } from "@/lib/billing/stripe";
 import { processStripeEvent } from "@/lib/billing/stripe-webhook";
 
@@ -10,11 +10,10 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get("stripe-signature");
 
     if (!signature) {
-      await createLog({
+      await logSystemEvent({
         action: "WEBHOOK_FAILED",
         entity: "webhook",
         description: "Webhook Stripe recebido sem assinatura",
-        companyId: "system",
       });
       return errorResponse("Missing signature", 400);
     }
@@ -29,11 +28,10 @@ export async function POST(request: NextRequest) {
         process.env.STRIPE_WEBHOOK_SECRET!
       );
     } catch (err) {
-      await createLog({
+      await logSystemEvent({
         action: "WEBHOOK_FAILED",
         entity: "webhook",
         description: `Assinatura do webhook Stripe inválida`,
-        companyId: "system",
       });
       return errorResponse("Invalid signature", 400);
     }
@@ -51,13 +49,12 @@ export async function POST(request: NextRequest) {
     console.error(error);
 
     try {
-      await createLog({
+      await logSystemEvent({
         action: "WEBHOOK_FAILED",
         entity: "webhook",
         description: `Erro ao processar webhook Stripe: ${
           error instanceof Error ? error.message : String(error)
         }`,
-        companyId: "system",
       });
     } catch {
       // log failure must never break the webhook response

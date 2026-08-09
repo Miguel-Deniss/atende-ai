@@ -2132,15 +2132,16 @@ Novos módulos `src/lib/`:
 - **`tenant/plan-limits.ts`** — limites por plano (`FREE`: 1 usuário, 50 msgs IA, 20 clientes; `ENTERPRISE`: altos); `checkUserLimit` na criação de usuário; `getPlanComparison`.
 - **`billing/plans.ts`** — `PLAN_DEFINITIONS` (FREE/STARTER/PRO/BUSINESS/ENTERPRISE, preços em centavos), `ensurePlans` (upsert), `listActivePlans`, `getPlanByCode`.
 - **`billing/coupons.ts`** — `validateCoupon` (inativo/expirado/esgotado/`allowedPlans`), `computeDiscount` (PERCENTAGE/FIXED), `incrementCouponUsage`.
-- **`billing/subscription.ts`** — `getCompanyBilling` (Subscription → fallback Company), `enforceBilling` (bloqueia PAST_DUE/CANCELED/trial expirado; usada no webhook WhatsApp e no `POST /messages` → 402), `createOrUpdateSubscription`, `recordBilling` (BillingHistory + logs), `getBillingHistory`, `syncSubscriptionRow`.
-- **`billing/stripe.ts`** — modo **demo** sem `STRIPE_SECRET_KEY` (ativa assinatura local marcada `mode: "demo"`); com chave, cria sessão de Checkout real (price IDs por env, metadata `companyId/planCode/couponCode`).
+- **`billing/subscription.ts`** — `getCompanyBilling` (prioriza `Company.planType`; evita que `INCOMPLETE` apareça como plano atual), `enforceBilling` (bloqueia PAST_DUE/CANCELED/trial expirado; usada no webhook WhatsApp e no `POST /messages` → 402), `createOrUpdateSubscription`, `updateSubscriptionStatus` (com **gate de promoção**: só `ACTIVE`/`TRIALING` associam `planId`/`planCode` à empresa), `recordBilling` (BillingHistory + logs), `getBillingHistory`, `syncSubscriptionRow`.
+- **`billing/stripe.ts`** — sem modo demo. `createCheckoutSession` lança `StripeConfigError` se `STRIPE_SECRET_KEY` ausente ou Price ID do plano não configurado; `getMissingStripePriceIds` lista planos sem Price ID.
+- **`billing/stripe-webhook.ts`** — `processStripeEvent` com idempotência via `WebhookEvent` única chave `provider+signature` (`claimEvent` + upsert + claim atômico); `handleSubscriptionUpdated` promove planType **somente** com status `ACTIVE`/`TRIALING` (Stripe = fonte de verdade).
 - **`auth/two-factor.ts`** — TOTP + QR + recovery codes (ver 6.5).
 - **`rate-limit/with-rate-limit.ts`** — `guardRateLimit(request, key, kind?)` (api 60/min, webhook 300/min) + `clientIp`; aplicado no webhook WhatsApp, `POST /messages` e `POST /billing/checkout`.
 
 Novas rotas `src/app/api/`:
 
 - **`billing/plans`** (GET) — planos ativos (autenticado).
-- **`billing/checkout`** (POST) — perm `company:manage_billing`; valida cupom, calcula desconto, demo → assinatura ACTIVE; stripe → sessão Checkout.
+- **`billing/checkout`** (POST) — perm `company:manage_billing`; valida cupom, calcula desconto, cria sessão Checkout Stripe; **não grava assinatura nem promove plano antes do pagamento** (confirmação via webhook).
 - **`billing/coupons/validate`** (POST) — valida cupom para um plano.
 - **`admin/coupons`** (GET/POST) e **`admin/coupons/[id]`** (PATCH/DELETE) — CRUD de cupons (SUPER_ADMIN).
 - **`admin/billing`** (GET) — totais, MRR, distribuição por plano/status, últimas 50 transações (SUPER_ADMIN).

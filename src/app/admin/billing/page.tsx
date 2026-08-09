@@ -2,7 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Wallet, Building2, CreditCard, TrendingUp, Loader2, RefreshCcw } from "lucide-react";
+import {
+  Wallet,
+  Building2,
+  CreditCard,
+  TrendingUp,
+  Loader2,
+  RefreshCcw,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock,
+  Ban,
+  AlertTriangle,
+  Webhook,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,12 +32,30 @@ interface Transaction {
   createdAt: string;
 }
 
+interface StripeLog {
+  id: string;
+  event: string;
+  status: string;
+  error: string | null;
+  createdAt: string;
+}
+
 interface BillingData {
   totals: { companies: number; activeSubscriptions: number };
+  counts: {
+    active: number;
+    trialing: number;
+    canceled: number;
+    pastDue: number;
+    incomplete: number;
+  };
   mrr: number;
+  arr: number;
+  revenue: number;
   planDistribution: Record<string, number>;
   statusDistribution: Record<string, number>;
   recentTransactions: Transaction[];
+  stripeLogs: StripeLog[];
 }
 
 export default function AdminBillingPage() {
@@ -41,18 +72,26 @@ export default function AdminBillingPage() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const formatBRL = (cents: number) =>
     (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  const statusLabels: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
+  const statusLabels: Record<
+    string,
+    { label: string; variant: "success" | "warning" | "destructive" | "secondary" }
+  > = {
     ACTIVE: { label: "Ativa", variant: "success" },
     TRIALING: { label: "Trial", variant: "warning" },
     PAST_DUE: { label: "Vencida", variant: "destructive" },
     CANCELED: { label: "Cancelada", variant: "secondary" },
     INCOMPLETE: { label: "Incompleta", variant: "secondary" },
   };
+
+  const logStatusVariant = (status: string): "success" | "warning" | "destructive" | "secondary" =>
+    status === "processed" ? "success" : status === "failed" ? "destructive" : "warning";
 
   if (loading) {
     return (
@@ -67,10 +106,63 @@ export default function AdminBillingPage() {
   }
 
   const cards = [
-    { icon: Building2, label: "Empresas", value: data.totals.companies.toLocaleString("pt-BR"), color: "from-blue-500 to-blue-400" },
-    { icon: CreditCard, label: "Assinaturas Ativas", value: data.totals.activeSubscriptions.toLocaleString("pt-BR"), color: "from-emerald-500 to-emerald-400" },
-    { icon: Wallet, label: "MRR", value: formatBRL(data.mrr), color: "from-amber-500 to-amber-400" },
-    { icon: TrendingUp, label: "Faturamento Anual (MRR × 12)", value: formatBRL(data.mrr * 12), color: "from-violet-500 to-violet-400" },
+    {
+      icon: Building2,
+      label: "Empresas",
+      value: data.totals.companies.toLocaleString("pt-BR"),
+      color: "from-blue-500 to-blue-400",
+    },
+    {
+      icon: CreditCard,
+      label: "Assinaturas Ativas",
+      value: data.totals.activeSubscriptions.toLocaleString("pt-BR"),
+      color: "from-emerald-500 to-emerald-400",
+    },
+    {
+      icon: Wallet,
+      label: "MRR (mensal)",
+      value: formatBRL(data.mrr),
+      color: "from-amber-500 to-amber-400",
+    },
+    {
+      icon: TrendingUp,
+      label: "ARR (anual)",
+      value: formatBRL(data.arr),
+      color: "from-violet-500 to-violet-400",
+    },
+  ];
+
+  const statusCards = [
+    {
+      icon: CircleDollarSign,
+      label: "Receita Recebida",
+      value: formatBRL(data.revenue),
+      color: "from-cyan-500 to-cyan-400",
+    },
+    {
+      icon: CheckCircle2,
+      label: "Ativas",
+      value: data.counts.active.toLocaleString("pt-BR"),
+      color: "from-emerald-500 to-emerald-400",
+    },
+    {
+      icon: Clock,
+      label: "Trial",
+      value: data.counts.trialing.toLocaleString("pt-BR"),
+      color: "from-amber-500 to-amber-400",
+    },
+    {
+      icon: AlertTriangle,
+      label: "Inadimplentes",
+      value: data.counts.pastDue.toLocaleString("pt-BR"),
+      color: "from-red-500 to-red-400",
+    },
+    {
+      icon: Ban,
+      label: "Canceladas",
+      value: data.counts.canceled.toLocaleString("pt-BR"),
+      color: "from-gray-500 to-gray-400",
+    },
   ];
 
   const actionBadge = (action: string) => {
@@ -80,15 +172,24 @@ export default function AdminBillingPage() {
       PAYMENT_SUCCESS: "success",
       PAYMENT_FAILURE: "destructive",
       SUBSCRIPTION_CANCELED: "destructive",
+      SUBSCRIPTION_CANCEL: "destructive",
       PLAN_CHANGE: "warning",
       TRIAL_STARTED: "warning",
     };
-    return <Badge variant={colors[action] || "secondary"} className="text-[10px]">{action}</Badge>;
+    return (
+      <Badge variant={colors[action] || "secondary"} className="text-[10px]">
+        {action}
+      </Badge>
+    );
   };
 
   return (
     <div className="space-y-8">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-start justify-between"
+      >
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Financeiro</h1>
           <p className="text-gray-500 text-sm">Visão geral das assinaturas e receita</p>
@@ -100,7 +201,35 @@ export default function AdminBillingPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card, i) => (
-          <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+          <motion.div
+            key={card.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+          >
+            <Card className="bg-card/50 border-border/50">
+              <CardContent className="p-5">
+                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.color} p-0.5 mb-3`}>
+                  <div className="w-full h-full rounded-xl bg-[#111827] flex items-center justify-center">
+                    <card.icon className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+                <p className="text-2xl font-bold text-white mb-0.5">{card.value}</p>
+                <p className="text-xs text-gray-500">{card.label}</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {statusCards.map((card, i) => (
+          <motion.div
+            key={card.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08 }}
+          >
             <Card className="bg-card/50 border-border/50">
               <CardContent className="p-5">
                 <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.color} p-0.5 mb-3`}>
@@ -128,10 +257,15 @@ export default function AdminBillingPage() {
                   <div key={plan}>
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-gray-300">{plan}</span>
-                      <span className="text-gray-400">{count} ({pct.toFixed(0)}%)</span>
+                      <span className="text-gray-400">
+                        {count} ({pct.toFixed(0)}%)
+                      </span>
                     </div>
                     <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   </div>
                 );
@@ -147,7 +281,10 @@ export default function AdminBillingPage() {
               {Object.entries(data.statusDistribution).map(([status, count]) => {
                 const total = Object.values(data.statusDistribution).reduce((a, b) => a + b, 0);
                 const pct = total > 0 ? (count / total) * 100 : 0;
-                const meta = statusLabels[status] || { label: status, variant: "secondary" as const };
+                const meta = statusLabels[status] || {
+                  label: status,
+                  variant: "secondary" as const,
+                };
                 return (
                   <div key={status} className="flex items-center justify-between py-1">
                     <div className="flex items-center gap-3">
@@ -155,7 +292,10 @@ export default function AdminBillingPage() {
                       <span className="text-sm text-gray-400">{count}</span>
                     </div>
                     <div className="w-32 h-2 bg-gray-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full"
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   </div>
                 );
@@ -173,21 +313,63 @@ export default function AdminBillingPage() {
           ) : (
             <div className="space-y-2">
               {data.recentTransactions.map((tx) => (
-                <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-secondary/20 hover:bg-secondary/30 transition-colors">
+                <div
+                  key={tx.id}
+                  className="flex items-center justify-between p-3 rounded-xl bg-secondary/20 hover:bg-secondary/30 transition-colors"
+                >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       {actionBadge(tx.action)}
                       <span className="text-sm font-medium text-white">{tx.companyName}</span>
                     </div>
-                    {tx.description && <p className="text-xs text-gray-500 mt-1">{tx.description}</p>}
-                    <p className="text-xs text-gray-600 mt-0.5">{new Date(tx.createdAt).toLocaleString("pt-BR")}</p>
+                    {tx.description && (
+                      <p className="text-xs text-gray-500 mt-1">{tx.description}</p>
+                    )}
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      {new Date(tx.createdAt).toLocaleString("pt-BR")}
+                    </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className={`text-sm font-semibold ${tx.amount > 0 ? "text-emerald-400" : "text-gray-400"}`}>
-                      {tx.amount > 0 ? "+" : ""}{formatBRL(tx.amount)}
+                    <p
+                      className={`text-sm font-semibold ${tx.amount > 0 ? "text-emerald-400" : "text-gray-400"}`}
+                    >
+                      {tx.amount > 0 ? "+" : ""}
+                      {formatBRL(tx.amount)}
                     </p>
                     <p className="text-xs text-gray-600">{tx.status}</p>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-border/50">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Webhook className="w-4 h-4 text-blue-400" />
+            <h3 className="text-base font-semibold text-white">Logs Stripe</h3>
+          </div>
+          {data.stripeLogs.length === 0 ? (
+            <p className="text-sm text-gray-500">Nenhum evento Stripe registrado</p>
+          ) : (
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {data.stripeLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="flex items-center justify-between p-3 rounded-xl bg-secondary/20 hover:bg-secondary/30 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={logStatusVariant(log.status)}>{log.status}</Badge>
+                      <span className="text-xs font-mono text-gray-300">{log.event}</span>
+                    </div>
+                    {log.error && <p className="text-xs text-red-400 mt-1 truncate">{log.error}</p>}
+                  </div>
+                  <p className="text-xs text-gray-600 flex-shrink-0 ml-3">
+                    {new Date(log.createdAt).toLocaleString("pt-BR")}
+                  </p>
                 </div>
               ))}
             </div>

@@ -325,6 +325,7 @@ model WebhookEvent {
   companyId   String?
   createdAt   DateTime  @default(now())
 
+  @@unique([provider, signature])
   @@index([provider, status])
   @@map("webhook_events")
 }

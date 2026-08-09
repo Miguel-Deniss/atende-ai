@@ -96,7 +96,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
   {
     code: "ENTERPRISE",
     name: "Enterprise",
-    price: 59900,
+    price: 39900,
     trialDays: 14,
     sortOrder: 4,
     limits: {

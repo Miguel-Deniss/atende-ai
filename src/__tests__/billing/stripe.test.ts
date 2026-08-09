@@ -34,6 +34,8 @@ import {
   cancelStripeSubscription,
   getStripeClient,
   resetStripeClient,
+  StripeConfigError,
+  getMissingStripePriceIds,
 } from "@/lib/billing/stripe";
 import Stripe from "stripe";
 
@@ -124,36 +126,56 @@ describe("getOrCreateStripeCustomer", () => {
   });
 });
 
-describe("createCheckoutSession", () => {
-  it("retorna modo demo sem Stripe configurado", async () => {
-    delete process.env.STRIPE_SECRET_KEY;
-    const result = await createCheckoutSession({
-      companyId: "c1",
-      customerId: "cus_1",
-      planCode: "PRO",
-      amount: 11900,
-      successUrl: "https://example.com/success",
-      cancelUrl: "https://example.com/cancel",
-      email: "a@b.com",
-      companyName: "Empresa",
-    });
-    expect(result).toEqual({ mode: "demo" });
+describe("getMissingStripePriceIds", () => {
+  it("retorna planos cujo price id não está configurado", () => {
+    process.env.STRIPE_STARTER_PRICE_ID = "price_starter";
+    process.env.STRIPE_PRO_PRICE_ID = "price_pro";
+    process.env.STRIPE_BUSINESS_PRICE_ID = "price_business";
+    delete process.env.STRIPE_ENTERPRISE_PRICE_ID;
+    expect(getMissingStripePriceIds()).toEqual(["ENTERPRISE"]);
   });
 
-  it("retorna modo demo quando plano não tem price id", async () => {
+  it("retorna todos os planos quando nenhum price id existe", () => {
+    delete process.env.STRIPE_STARTER_PRICE_ID;
+    delete process.env.STRIPE_PRO_PRICE_ID;
+    delete process.env.STRIPE_BUSINESS_PRICE_ID;
+    delete process.env.STRIPE_ENTERPRISE_PRICE_ID;
+    expect(getMissingStripePriceIds()).toEqual(["STARTER", "PRO", "BUSINESS", "ENTERPRISE"]);
+  });
+});
+
+describe("createCheckoutSession", () => {
+  it("lança StripeConfigError sem Stripe configurado", async () => {
+    delete process.env.STRIPE_SECRET_KEY;
+    await expect(
+      createCheckoutSession({
+        companyId: "c1",
+        customerId: "cus_1",
+        planCode: "PRO",
+        amount: 11900,
+        successUrl: "https://example.com/success",
+        cancelUrl: "https://example.com/cancel",
+        email: "a@b.com",
+        companyName: "Empresa",
+      })
+    ).rejects.toBeInstanceOf(StripeConfigError);
+  });
+
+  it("lança StripeConfigError quando plano não tem price id", async () => {
     process.env.STRIPE_SECRET_KEY = "sk_test_123";
     delete process.env.STRIPE_STARTER_PRICE_ID;
-    const result = await createCheckoutSession({
-      companyId: "c1",
-      customerId: "cus_1",
-      planCode: "STARTER",
-      amount: 5900,
-      successUrl: "https://example.com/success",
-      cancelUrl: "https://example.com/cancel",
-      email: "a@b.com",
-      companyName: "Empresa",
-    });
-    expect(result).toEqual({ mode: "demo" });
+    await expect(
+      createCheckoutSession({
+        companyId: "c1",
+        customerId: "cus_1",
+        planCode: "STARTER",
+        amount: 5900,
+        successUrl: "https://example.com/success",
+        cancelUrl: "https://example.com/cancel",
+        email: "a@b.com",
+        companyName: "Empresa",
+      })
+    ).rejects.toBeInstanceOf(StripeConfigError);
   });
 
   it("cria sessão de checkout com customer", async () => {

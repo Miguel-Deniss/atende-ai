@@ -2,13 +2,27 @@ import Stripe from "stripe";
 
 let stripeInstance: Stripe | null = null;
 
+export class StripeConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StripeConfigError";
+  }
+}
+
+export const PRICE_REQUIRED_PLAN_CODES = ["STARTER", "PRO", "BUSINESS", "ENTERPRISE"];
+
 function getStripePriceIds(): Record<string, string | undefined> {
   return {
-    STARTER: process.env.STRIPE_STARTER_PRICE_ID,
-    PRO: process.env.STRIPE_PRO_PRICE_ID,
-    BUSINESS: process.env.STRIPE_BUSINESS_PRICE_ID,
-    ENTERPRISE: process.env.STRIPE_ENTERPRISE_PRICE_ID,
+    STARTER: process.env.STRIPE_STARTER_PRICE_ID || undefined,
+    PRO: process.env.STRIPE_PRO_PRICE_ID || undefined,
+    BUSINESS: process.env.STRIPE_BUSINESS_PRICE_ID || undefined,
+    ENTERPRISE: process.env.STRIPE_ENTERPRISE_PRICE_ID || undefined,
   };
+}
+
+export function getMissingStripePriceIds(): string[] {
+  const ids = getStripePriceIds();
+  return PRICE_REQUIRED_PLAN_CODES.filter((code) => !ids[code]);
 }
 
 export function resetStripeClient(): void {
@@ -77,7 +91,7 @@ export async function getOrCreateStripeCustomer(opts: {
 }
 
 export interface CheckoutResult {
-  mode: "stripe" | "demo";
+  mode: "stripe";
   url?: string;
   checkoutSessionId?: string;
   customerId?: string;
@@ -95,12 +109,16 @@ export async function createCheckoutSession(opts: {
   companyName: string;
 }): Promise<CheckoutResult> {
   if (!isStripeConfigured()) {
-    return { mode: "demo" };
+    throw new StripeConfigError(
+      "STRIPE_SECRET_KEY não configurada. Pagamentos indisponíveis no momento."
+    );
   }
 
   const priceId = mapPlanToPriceId(opts.planCode);
   if (!priceId) {
-    return { mode: "demo" };
+    throw new StripeConfigError(
+      `Price ID não configurado para o plano ${opts.planCode}. Contate o administrador.`
+    );
   }
 
   const stripe = getStripeClient();

@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
+import { getFeatureLabel } from "@/lib/billing/feature-labels";
 
 interface Plan {
   id: string;
@@ -110,9 +111,30 @@ export default function SubscriptionPage() {
 
   useEffect(() => {
     const status = searchParams.get("checkout");
+    if (!status) return;
+
     if (status === "success") {
-      toast("Pagamento aprovado! Sua assinatura está ativa.");
-      loadData();
+      (async () => {
+        try {
+          const res = await fetch("/api/subscription", { credentials: "include" });
+          const data = await res.json();
+          if (data.success) {
+            setSubscription(data.data);
+            if (data.data?.status === "ACTIVE" || data.data?.status === "TRIALING") {
+              toast("Pagamento aprovado! Sua assinatura está ativa.");
+            } else if (data.data?.status === "PAST_DUE") {
+              toast("Pagamento pendente. Revise sua forma de pagamento.", "error");
+            } else {
+              toast("Checkout finalizado. Sua assinatura será ativada em instantes.");
+            }
+          } else {
+            toast("Checkout finalizado, mas não foi possível confirmar o status.", "error");
+          }
+        } catch {
+          toast("Checkout finalizado, mas não foi possível confirmar o status.", "error");
+        }
+        await loadData();
+      })();
     } else if (status === "cancel") {
       toast("Checkout cancelado. Nenhuma cobrança foi realizada.", "error");
     }
@@ -162,13 +184,7 @@ export default function SubscriptionPage() {
         return;
       }
 
-      if (data.data.mode === "demo") {
-        toast("Plano ativado (modo demonstração)!");
-        setSelectedPlan(null);
-        setCouponCode("");
-        setCouponInfo(null);
-        await loadData();
-      }
+      toast("Não foi possível iniciar o checkout. Tente novamente.", "error");
     } catch {
       toast("Erro ao conectar com o servidor", "error");
     } finally {
@@ -289,7 +305,7 @@ export default function SubscriptionPage() {
               {(subscription?.features?.length ? subscription.features : ["Sem recursos disponíveis"]).map((feature) => (
                 <div key={feature} className="flex items-center gap-2 text-sm text-gray-300">
                   <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  {feature}
+                  {getFeatureLabel(feature)}
                 </div>
               ))}
             </div>
@@ -328,7 +344,7 @@ export default function SubscriptionPage() {
                     {(plan.features ?? []).slice(0, 4).map((f) => (
                       <li key={f} className="flex items-center gap-2 text-xs text-gray-400">
                         <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-                        {f}
+                        {getFeatureLabel(f)}
                       </li>
                     ))}
                     {(plan.features ?? []).length > 4 && (

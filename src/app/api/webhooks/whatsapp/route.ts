@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse } from "@/lib/auth/api-response";
-import { createLog } from "@/lib/logger";
+import { logSystemEvent } from "@/lib/logger";
 import {
   verifyMetaSignature,
   verifyWebhookToken,
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get("x-hub-signature-256");
 
   if (!verifyMetaSignature(body, signature)) {
-    await createLog({
+    await logSystemEvent({
       action: signature
         ? "WEBHOOK_FAILED"
         : "SUSPICIOUS_ACTIVITY",
@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
       description: signature
         ? "Assinatura do webhook WhatsApp inválida"
         : "Webhook WhatsApp recebido sem assinatura",
-      companyId: "system",
     });
     return errorResponse("Invalid signature", 401);
   }
@@ -45,11 +44,10 @@ export async function POST(request: NextRequest) {
     return errorResponse("Invalid payload", 400);
   }
 
-  await createLog({
+  await logSystemEvent({
     action: "WEBHOOK_RECEIVED",
     entity: "webhook",
     description: "Webhook WhatsApp recebido",
-    companyId: "system",
   });
 
   const webhookEvent = await prisma.webhookEvent.create({

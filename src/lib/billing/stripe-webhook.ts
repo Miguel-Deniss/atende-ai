@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { createLog } from "@/lib/logger";
+import { createLog, logSystemEvent } from "@/lib/logger";
 import { getPlanByCode } from "@/lib/billing/plans";
 import {
   createOrUpdateSubscription,
@@ -30,16 +30,22 @@ async function markProcessed(eventId: string, type: string, status: "processed" 
   });
 }
 
-async function alreadyProcessed(eventId: string): Promise<boolean> {
+async function claimEvent(event: StripeEvent): Promise<boolean> {
   const existing = await prisma.webhookEvent.findFirst({
-    where: { signature: eventId, provider: "stripe", status: "processed" },
+    where: { provider: "stripe", signature: event.id },
+    select: { status: true },
   });
-  return Boolean(existing);
-}
 
-async function recordStripeEvent(event: StripeEvent): Promise<void> {
-  await prisma.webhookEvent.create({
-    data: {
+  if (existing?.status === "processed" || existing?.status === "processing") {
+    return false;
+  }
+
+  await prisma.webhookEvent.upsert({
+    where: {
+      provider_signature: { provider: "stripe", signature: event.id },
+    },
+    update: {},
+    create: {
       provider: "stripe",
       event: event.type,
       signature: event.id,
@@ -47,12 +53,23 @@ async function recordStripeEvent(event: StripeEvent): Promise<void> {
       status: "received",
     },
   });
+
+  await prisma.webhookEvent.updateMany({
+    where: { provider: "stripe", signature: event.id, status: "failed" },
+    data: { status: "received", error: null, processedAt: null },
+  });
+
+  const claimed = await prisma.webhookEvent.updateMany({
+    where: { provider: "stripe", signature: event.id, status: "received" },
+    data: { status: "processing" },
+  });
+
+  return claimed.count > 0;
 }
 
 export async function processStripeEvent(event: StripeEvent): Promise<"processed" | "skipped"> {
-  await recordStripeEvent(event);
-
-  if (await alreadyProcessed(event.id)) {
+  const claimed = await claimEvent(event);
+  if (!claimed) {
     return "skipped";
   }
 
@@ -83,12 +100,11 @@ export async function processStripeEvent(event: StripeEvent): Promise<"processed
     return "processed";
   } catch (error) {
     await markProcessed(event.id, event.type, "failed", error instanceof Error ? error.message : String(error));
-    await createLog({
+    await logSystemEvent({
       action: "WEBHOOK_FAILED",
       entity: "webhook",
       entityId: event.id,
       description: `Falha ao processar evento Stripe ${event.type}`,
-      companyId: "system",
     });
     throw error;
   }
@@ -160,9 +176,15 @@ async function handleSubscriptionUpdated(subscription: StripeEventObject) {
   const currentPeriodStart = subscription.current_period_start as number | undefined;
   const cancelAtPeriodEnd = subscription.cancel_at_period_end as boolean | undefined;
 
+  const canPromote = dbStatus === "ACTIVE" || dbStatus === "TRIALING";
+  const selectedPlan = canPromote && planCode ? await getPlanByCode(planCode) : null;
+
   const updates: Parameters<typeof updateSubscriptionStatus>[0] = {
     companyId: company.id,
     status: dbStatus,
+    ...(selectedPlan
+      ? { planId: selectedPlan.id, planCode: selectedPlan.code }
+      : {}),
     logAction:
       dbStatus === "PAST_DUE"
         ? "PAYMENT_FAILURE"
@@ -184,7 +206,7 @@ async function handleSubscriptionUpdated(subscription: StripeEventObject) {
 
   await updateSubscriptionStatus(updates);
 
-  if (planCode && planCode !== company.planType) {
+  if (canPromote && planCode && planCode !== company.planType) {
     await prisma.company.update({
       where: { id: company.id },
       data: { planType: planCode as never },

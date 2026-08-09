@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { logger } from "@/lib/logger/structured";
 
 export type LogAction =
   | "LOGIN_SUCCESS"
@@ -40,6 +41,19 @@ export type LogAction =
   | "EMAIL_SENT"
   | "EMAIL_FAILED";
 
+const SYSTEM_COMPANY_IDS = new Set(["system"]);
+
+export function logSystemEvent(params: {
+  action: LogAction;
+  entity: string;
+  entityId?: string;
+  description?: string;
+}): void {
+  logger.warn(
+    `[audit:${params.action}] ${params.entity}${params.entityId ? ` (${params.entityId})` : ""}: ${params.description ?? ""}`
+  );
+}
+
 export async function createLog(params: {
   action: LogAction;
   entity: string;
@@ -53,6 +67,16 @@ export async function createLog(params: {
   userAgent?: string;
   screen?: string;
 }): Promise<void> {
+  if (SYSTEM_COMPANY_IDS.has(params.companyId)) {
+    logSystemEvent({
+      action: params.action,
+      entity: params.entity,
+      entityId: params.entityId,
+      description: params.description,
+    });
+    return;
+  }
+
   try {
     await prisma.auditLog.create({
       data: {

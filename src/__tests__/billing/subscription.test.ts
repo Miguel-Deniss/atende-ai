@@ -139,4 +139,61 @@ describe("updateSubscriptionStatus", () => {
     };
     expect(updateCall.data.canceledAt).toBe(canceledAt);
   });
+
+  it("não promove planType quando status é INCOMPLETE mesmo com plano informado", async () => {
+    await updateSubscriptionStatus({
+      companyId: "c1",
+      status: "INCOMPLETE",
+      planId: "plan_1",
+      planCode: "PRO",
+      logAction: "SUBSCRIPTION_RENEWED",
+    });
+
+    const subUpdate = vi.mocked(prisma.subscription.updateMany).mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(subUpdate.data.status).toBe("INCOMPLETE");
+    expect(subUpdate.data.planId).toBeUndefined();
+
+    const companyUpdate = vi.mocked(prisma.company.update).mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(companyUpdate.data.planType).toBeUndefined();
+    expect(companyUpdate.data.subscriptionStatus).toBe("INCOMPLETE");
+  });
+
+  it("não promove planType quando status é PAST_DUE mesmo com plano informado", async () => {
+    await updateSubscriptionStatus({
+      companyId: "c1",
+      status: "PAST_DUE",
+      planId: "plan_1",
+      planCode: "PRO",
+      logAction: "PAYMENT_FAILURE",
+    });
+
+    const companyUpdate = vi.mocked(prisma.company.update).mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(companyUpdate.data.planType).toBeUndefined();
+  });
+
+  it("promove planType quando status é ACTIVE com plano informado", async () => {
+    await updateSubscriptionStatus({
+      companyId: "c1",
+      status: "ACTIVE",
+      planId: "plan_1",
+      planCode: "BUSINESS",
+      logAction: "SUBSCRIPTION_RENEWED",
+    });
+
+    const subUpdate = vi.mocked(prisma.subscription.updateMany).mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(subUpdate.data.planId).toBe("plan_1");
+
+    const companyUpdate = vi.mocked(prisma.company.update).mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(companyUpdate.data.planType).toBe("BUSINESS");
+  });
 });

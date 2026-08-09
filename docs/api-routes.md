@@ -620,16 +620,18 @@
   1. Lê body raw + header `stripe-signature`
   2. Se sem assinatura, log `WEBHOOK_FAILED`, erro 400
   3. `stripe.webhooks.constructEvent(body, signature, STRIPE_WEBHOOK_SECRET)` — se inválido, log + erro 400
-  4. Switch por `event.type`:
-     - **checkout.session.completed**: extrai customerId, subscriptionId, priceId → `updateMany` company com stripeCustomerId match, atualiza subscriptionId, status ACTIVE, planType
-     - **customer.subscription.updated/deleted**: mapeia status Stripe → DB, atualiza company
-     - **invoice.paid**: log `PAYMENT_SUCCESS`
-     - **invoice.payment_failed**: atualiza status PAST_DUE, log `PAYMENT_FAILURE`
-  5. Retorna `{ received: true }`
+  4. `processStripeEvent(event)` (`src/lib/billing/stripe-webhook.ts`) com deduplicação idempotente: `claimEvent` garante o registro único de `WebhookEvent` (unique `provider+signature`) e claim atômico; replay de evento já processado → `"skipped"`; falha → status `failed` + log `WEBHOOK_FAILED` (retentável em novo delivery do Stripe)
+  5. Switch por `event.type`:
+     - **checkout.session.completed**: ativa assinatura (ACTIVE) e promove planType — **única fonte de confirmação de pagamento**
+     - **customer.subscription.updated**: sincroniza status; promove planType **somente** quando status `ACTIVE`/`TRIALING`; `INCOMPLETE`/`PAST_DUE`/`UNPAID` não promovem plano
+     - **customer.subscription.deleted**: marca CANCELED
+     - **invoice.paid**: registra `PAYMENT_SUCCESS` + envia fatura por e-mail
+     - **invoice.payment_failed**: marca PAST_DUE + log `PAYMENT_FAILURE`
+  6. Retorna `{ received: true }`
 - **Validação**: Stripe webhook signature (constructEvent)
-- **Dependências**: `prisma`, `errorResponse`, `createLog`
+- **Dependências**: `prisma`, `errorResponse`, `createLog`, `src/lib/billing/{stripe-webhook,stripe,plans,coupons,subscription,email}.ts`
 - **Problemas**: Nenhum reportado
-- **Observações**: Stripe instanciado com `require()` inline. Helper `mapPriceIdToPlan` lê env vars `STRIPE_STARTER_PRO_BUSINESS_PRICE_ID`.
+- **Observações**: `incrementCouponUsage` é executado aqui (e apenas aqui), após confirmação do pagamento. Price IDs lidos de `STRIPE_STARTER/PRO/BUSINESS/ENTERPRISE_PRICE_ID`.
 
 ---
 
@@ -811,11 +813,12 @@
   4. `getPlanByCode` — 404 se plano inexistente ou inativo
   5. Se `couponCode`: `validateCoupon` (`src/lib/billing/coupons.ts`) — inválido → 400
   6. `computeDiscount(price, type, value)` → valor final
-  7. **Modo demo** (sem `STRIPE_SECRET_KEY`): `createOrUpdateSubscription` → assinatura local ACTIVE + log `SUBSCRIPTION_CREATED` + `BillingHistory` (`PAYMENT_SUCCESS`, metadata `{ mode: "demo" }`) + log `PAYMENT_SUCCESS`; retorna `{ demo: true, subscription }`
-  8. **Modo Stripe** (com chave): `createCheckoutSession` (`src/lib/billing/stripe.ts`) com price ID por env, metadata `companyId/planCode/couponCode`; grava assinatura local status `INCOMPLETE`; retorna `{ url }` do Stripe Checkout
+  7. Valida config Stripe: sem `STRIPE_SECRET_KEY` → 503; Price ID do plano ausente (`getMissingStripePriceIds`) → 503. Não há mais modo demo.
+  8. `createCheckoutSession` (`src/lib/billing/stripe.ts`) com price ID por env, metadata `companyId/planCode/couponCode`; lança `StripeConfigError` → 503; qualquer outro erro → 502
+  9. **Não grava assinatura nem promove plano antes do pagamento** — o Stripe é a fonte de verdade e a confirmação ocorre via webhook (`checkout.session.completed` / `customer.subscription.updated`). Retorna `{ mode: "stripe", url, checkoutSessionId, amount }`
 - **Validação**: `checkoutSchema`
-- **Dependências**: `requirePermission`, `prisma`, `src/lib/billing/{plans,coupons,subscription,stripe}.ts`, `guardRateLimit`, `createLog`
-- **Observações**: Cupons não usados em modo demo são contabilizados via `incrementCouponUsage`.
+- **Dependências**: `requirePermission`, `prisma`, `src/lib/billing/{plans,coupons,stripe}.ts`, `guardRateLimit`
+- **Observações**: `incrementCouponUsage` é contabilizado apenas no webhook, após confirmação do Stripe.
 
 ---
 

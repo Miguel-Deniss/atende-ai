@@ -27,7 +27,7 @@ export async function getCompanyBilling(companyId: string) {
   ]);
 
   return {
-    planType: subscription?.plan?.code ?? company?.planType ?? "FREE",
+    planType: company?.planType ?? subscription?.plan?.code ?? "FREE",
     status: subscription?.status ?? company?.subscriptionStatus ?? "TRIALING",
     trialEndsAt: company?.trialEndsAt ?? null,
     nextBillingDate: subscription?.nextBillingDate ?? null,
@@ -123,11 +123,14 @@ export async function createOrUpdateSubscription(
     select: { id: true, status: true, nextBillingDate: true },
   });
 
+  const status = input.status ?? "ACTIVE";
+  const promotePlan = status === "ACTIVE" || status === "TRIALING";
+
   await prisma.company.update({
     where: { id: input.companyId },
     data: {
-      planType: input.planCode as never,
-      subscriptionStatus: input.status ?? "ACTIVE",
+      ...(promotePlan ? { planType: input.planCode as never } : {}),
+      subscriptionStatus: status,
       trialEndsAt,
       ...(input.stripeCustomerId ? { stripeCustomerId: input.stripeCustomerId } : {}),
       ...(input.stripeSubscriptionId
@@ -201,14 +204,21 @@ export async function updateSubscriptionStatus(input: {
   expiresAt?: Date | null;
   canceledAt?: Date | null;
   stripeSubscriptionId?: string;
+  planId?: string;
+  planCode?: string;
   logAction?: LogAction;
   userId?: string;
   description?: string;
 }): Promise<void> {
+  const promote =
+    (input.status === "ACTIVE" || input.status === "TRIALING") &&
+    Boolean(input.planId && input.planCode);
+
   await prisma.subscription.updateMany({
     where: { companyId: input.companyId },
     data: {
       status: input.status,
+      ...(promote && input.planId ? { planId: input.planId } : {}),
       ...(input.nextBillingDate !== undefined
         ? { nextBillingDate: input.nextBillingDate }
         : {}),
@@ -221,6 +231,7 @@ export async function updateSubscriptionStatus(input: {
     where: { id: input.companyId },
     data: {
       subscriptionStatus: input.status,
+      ...(promote && input.planCode ? { planType: input.planCode as never } : {}),
       ...(input.stripeSubscriptionId
         ? { stripeSubscriptionId: input.stripeSubscriptionId }
         : {}),
