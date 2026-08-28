@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { getFeatureLabel } from "@/lib/billing/feature-labels";
 
@@ -70,6 +70,7 @@ function formatDate(value: string | null | undefined): string {
 export default function SubscriptionPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
@@ -134,12 +135,26 @@ export default function SubscriptionPage() {
           toast("Checkout finalizado, mas não foi possível confirmar o status.", "error");
         }
         await loadData();
+        // Remove checkout parameter from URL to prevent duplicate processing
+        const params = new URLSearchParams(searchParams);
+        params.delete('checkout');
+        const queryString = params.toString();
+        const url = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+        router.replace(url, { scroll: false });
       })();
     } else if (status === "cancel") {
-      toast("Checkout cancelado. Nenhuma cobrança foi realizada.", "error");
+      (async () => {
+        toast("Checkout cancelado. Nenhuma cobrança foi realizada.", "error");
+        await loadData();
+        // Remove checkout parameter from URL to prevent duplicate processing
+        const params = new URLSearchParams(searchParams);
+        params.delete('checkout');
+        const queryString = params.toString();
+        const url = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+        router.replace(url, { scroll: false });
+      })();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   const validateCoupon = async () => {
     if (!couponCode.trim() || !selectedPlan) return;
