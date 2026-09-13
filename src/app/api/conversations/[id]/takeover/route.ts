@@ -2,16 +2,9 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requirePermission } from "@/lib/auth/api-guard";
 import { publish } from "@/lib/realtime";
-import {
-  successResponse,
-  errorResponse,
-  notFoundResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse, notFoundResponse } from "@/lib/auth/api-response";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, response } = await requirePermission("company:respond_conversations");
     if (response) return response;

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { requireRole } from "@/lib/auth/api-guard";
 import { paginationSchema } from "@/lib/validators/auth";
-import { createLog } from "@/lib/logger";
+import { CompanyStatus, PlanType, type Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const { page, limit, search, status } = parsed.data!;
     const planType = searchParams.get("planType");
 
-    const where: Record<string, unknown> = {};
+    const where: Prisma.CompanyWhereInput = {};
 
     if (search) {
       where.OR = [
@@ -31,16 +31,20 @@ export async function GET(request: NextRequest) {
     }
 
     if (status) {
-      where.status = status;
+      const normalizedStatus = Object.values(CompanyStatus).find((value) => value === status);
+      if (!normalizedStatus) return errorResponse("Status invalido", 400);
+      where.status = normalizedStatus;
     }
 
     if (planType) {
-      where.planType = planType;
+      const normalizedPlan = Object.values(PlanType).find((value) => value === planType);
+      if (!normalizedPlan) return errorResponse("Plano invalido", 400);
+      where.planType = normalizedPlan;
     }
 
     const [companies, total] = await Promise.all([
       prisma.company.findMany({
-        where: where as any,
+        where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: "desc" },
@@ -54,7 +58,7 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
-      prisma.company.count({ where: where as any }),
+      prisma.company.count({ where }),
     ]);
 
     return successResponse({

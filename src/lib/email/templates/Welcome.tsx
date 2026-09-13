@@ -16,14 +16,18 @@ export function WelcomeTemplate({
 }: WelcomeTemplateProps) {
   return (
     <EmailLayout preview="Bem-vindo ao AtendeAI" title={`Bem-vindo(a), ${userName}!`}>
-      <Text style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 16px 0" }}>
+      <Text
+        style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 16px 0" }}
+      >
         Sua conta na empresa <strong style={{ color: "#F8FAFC" }}>{companyName}</strong> foi criada
         com sucesso no <strong style={{ color: "#F8FAFC" }}>AtendeAI</strong>.
       </Text>
 
-      <Text style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 24px 0" }}>
-        Agora você pode automatizar o atendimento da sua empresa, gerenciar clientes e
-        conversas em um só lugar. Estamos muito felizes em ter você conosco.
+      <Text
+        style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 24px 0" }}
+      >
+        A conta vinculada a <strong style={{ color: "#F8FAFC" }}>{userEmail}</strong> já pode
+        acessar o atendimento, os clientes e as conversas da empresa em um só lugar.
       </Text>
 
       <Section style={{ textAlign: "center", margin: "0 0 24px 0" }}>
@@ -50,7 +54,9 @@ export function WelcomeTemplate({
         {loginUrl}
       </Link>
 
-      <Text style={{ color: "#64748B", fontSize: "13px", lineHeight: "20px", margin: "16px 0 0 0" }}>
+      <Text
+        style={{ color: "#64748B", fontSize: "13px", lineHeight: "20px", margin: "16px 0 0 0" }}
+      >
         Suas credenciais de acesso foram enviadas por quem criou sua conta em{" "}
         <strong style={{ color: "#94A3B8" }}>{companyName}</strong>. Se você não esperava esta
         mensagem, entre em contato com o administrador da empresa.

@@ -1,6 +1,5 @@
-import { NextRequest } from "next/server";
 import { revokeSession, clearAuthCookies, getCurrentUser } from "@/lib/auth/session";
-import { successResponse, errorResponse } from "@/lib/auth/api-response";
+import { successResponse } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
 import { cookies } from "next/headers";
 

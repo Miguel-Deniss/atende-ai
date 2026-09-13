@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
@@ -7,6 +7,7 @@ vi.mock("@/lib/db/prisma", () => ({
     },
     appointment: {
       create: vi.fn(),
+      findMany: vi.fn(),
     },
     message: {
       findMany: vi.fn(),
@@ -24,18 +25,25 @@ import { createDefaultDeps, type ConversationManagerDeps } from "@/lib/ai/conver
 
 const mockedFindUnique = vi.mocked(prisma.conversation.findUnique);
 const mockedCreate = vi.mocked(prisma.appointment.create);
+const mockedFindAppointments = vi.mocked(prisma.appointment.findMany);
 const mockedCreateLog = vi.mocked(createLog);
 const mockedFindMany = vi.mocked(prisma.message.findMany);
 
 let deps: ConversationManagerDeps;
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-08-01T12:00:00.000Z"));
   mockedFindUnique.mockReset();
   mockedCreate.mockReset();
+  mockedFindAppointments.mockReset();
+  mockedFindAppointments.mockResolvedValue([] as never);
   mockedCreateLog.mockReset();
   mockedFindMany.mockReset();
   deps = createDefaultDeps();
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe("createDefaultDeps.loadRecentMessages", () => {
   it("deve buscar as últimas mensagens em ordem desc com take e reverter para ordem cronológica", async () => {
@@ -70,7 +78,7 @@ describe("createDefaultDeps.loadRecentMessages", () => {
 
     const result = await deps.loadRecentMessages("conv-1", 3);
 
-    expect(result.map(m => m.content)).toEqual(["msg-5", "msg-6", "msg-7"]);
+    expect(result.map((m) => m.content)).toEqual(["msg-5", "msg-6", "msg-7"]);
   });
 });
 
@@ -79,6 +87,7 @@ describe("createDefaultDeps.persistAppointment", () => {
     mockedFindUnique.mockResolvedValue({
       companyId: "company-1",
       clientId: "client-1",
+      company: { hours: "08:00 as 18:00", aiConfig: { services: [{ name: "Barba" }] } },
     } as never);
     mockedCreate.mockResolvedValue({ id: "appt-1" } as never);
 
@@ -89,7 +98,7 @@ describe("createDefaultDeps.persistAppointment", () => {
 
     expect(mockedFindUnique).toHaveBeenCalledWith({
       where: { id: "conv-1" },
-      select: { companyId: true, clientId: true },
+      select: expect.objectContaining({ companyId: true, clientId: true }),
     });
 
     expect(mockedCreate).toHaveBeenCalledWith({
@@ -118,6 +127,7 @@ describe("createDefaultDeps.persistAppointment", () => {
     mockedFindUnique.mockResolvedValue({
       companyId: "company-1",
       clientId: null,
+      company: { hours: "08:00 as 18:00", aiConfig: { services: [{ name: "Corte" }] } },
     } as never);
     mockedCreate.mockResolvedValue({ id: "appt-2" } as never);
 
@@ -135,6 +145,7 @@ describe("createDefaultDeps.persistAppointment", () => {
     mockedFindUnique.mockResolvedValue({
       companyId: "company-1",
       clientId: null,
+      company: { hours: "08:00 as 18:00", aiConfig: { services: [{ name: "Barba" }] } },
     } as never);
     mockedCreate.mockResolvedValue({ id: "appt-3" } as never);
 
@@ -165,6 +176,7 @@ describe("createDefaultDeps.persistAppointment", () => {
     mockedFindUnique.mockResolvedValue({
       companyId: "company-1",
       clientId: null,
+      company: { hours: "08:00 as 18:00", aiConfig: { services: [{ name: "Barba" }] } },
     } as never);
 
     await expect(
@@ -181,6 +193,7 @@ describe("createDefaultDeps.persistAppointment", () => {
     mockedFindUnique.mockResolvedValue({
       companyId: "company-1",
       clientId: null,
+      company: { hours: "08:00 as 18:00", aiConfig: { services: [{ name: "Barba" }] } },
     } as never);
 
     await expect(

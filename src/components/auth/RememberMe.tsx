@@ -20,7 +20,13 @@ export function RememberMe({ checked, onChange }: RememberMeProps) {
           fill="none"
           className="opacity-0 peer-checked:opacity-100 transition-opacity"
         >
-          <path d="M2 5.2L4.2 7.4L8 2.8" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M2 5.2L4.2 7.4L8 2.8"
+            stroke="white"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </span>
       <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">

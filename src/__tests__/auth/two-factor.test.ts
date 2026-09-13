@@ -30,9 +30,7 @@ describe("two-factor", () => {
 
     it("gera otpauth_url com o nome da empresa", () => {
       const secret = generateSecret("admin@barbearia.com");
-      expect(decodeURIComponent(secret.otpauth_url!)).toContain(
-        "AtendeAI:admin@barbearia.com"
-      );
+      expect(decodeURIComponent(secret.otpauth_url!)).toContain("AtendeAI:admin@barbearia.com");
     });
   });
 

@@ -1,14 +1,8 @@
 import { prisma } from "@/lib/db/prisma";
 import { Prisma } from "@prisma/client";
-import {
-  conversationStateSchema,
-  defaultConversationState,
-  type ConversationState,
-} from "./types";
+import { conversationStateSchema, defaultConversationState, type ConversationState } from "./types";
 
-export async function loadConversationState(
-  conversationId: string
-): Promise<ConversationState> {
+export async function loadConversationState(conversationId: string): Promise<ConversationState> {
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
     select: { state: true },
@@ -49,9 +43,7 @@ export async function saveConversationState(
   });
 }
 
-export async function clearConversationState(
-  conversationId: string
-): Promise<void> {
+export async function clearConversationState(conversationId: string): Promise<void> {
   await prisma.conversation.update({
     where: { id: conversationId },
     data: { state: Prisma.DbNull },

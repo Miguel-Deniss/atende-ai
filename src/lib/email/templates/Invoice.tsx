@@ -23,7 +23,9 @@ export function InvoiceTemplate({
       preview={`Fatura ${invoiceNumber} — ${amount}`}
       title={`Fatura para ${companyName}`}
     >
-      <Text style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 24px 0" }}>
+      <Text
+        style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 24px 0" }}
+      >
         Segue a fatura referente à assinatura do plano{" "}
         <strong style={{ color: "#F8FAFC" }}>{planName}</strong> da empresa{" "}
         <strong style={{ color: "#F8FAFC" }}>{companyName}</strong>.
@@ -71,7 +73,10 @@ export function InvoiceTemplate({
       <Text style={{ color: "#64748B", fontSize: "13px", lineHeight: "20px", margin: "0 0 8px 0" }}>
         Se o botão não funcionar, copie e cole o link abaixo no seu navegador:
       </Text>
-      <Link href={invoiceUrl} style={{ color: "#60A5FA", fontSize: "13px", wordBreak: "break-all" }}>
+      <Link
+        href={invoiceUrl}
+        style={{ color: "#60A5FA", fontSize: "13px", wordBreak: "break-all" }}
+      >
         {invoiceUrl}
       </Link>
     </EmailLayout>

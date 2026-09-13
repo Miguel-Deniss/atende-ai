@@ -39,10 +39,7 @@ export async function validateCoupon(
     return { valid: false, reason: "Cupom esgotado" };
   }
 
-  if (
-    coupon.allowedPlans.length > 0 &&
-    !coupon.allowedPlans.includes(planCode)
-  ) {
+  if (coupon.allowedPlans.length > 0 && !coupon.allowedPlans.includes(planCode)) {
     return { valid: false, reason: "Cupom não se aplica a este plano" };
   }
 

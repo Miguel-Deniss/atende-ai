@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 interface Message {
@@ -28,7 +28,7 @@ export default function ConversationPage() {
 
   const handled = Boolean(conversation?.handledBy);
 
-  async function loadMessages() {
+  const loadMessages = useCallback(async () => {
     const response = await fetch(`/api/conversations/${id}/messages`);
 
     const data = await response.json();
@@ -36,9 +36,9 @@ export default function ConversationPage() {
     if (data.success) {
       setMessages(data.data);
     }
-  }
+  }, [id]);
 
-  async function loadConversation() {
+  const loadConversation = useCallback(async () => {
     const response = await fetch(`/api/conversations/${id}`);
 
     const data = await response.json();
@@ -46,14 +46,14 @@ export default function ConversationPage() {
     if (data.success) {
       setConversation(data.data);
     }
-  }
+  }, [id]);
 
   useEffect(() => {
     if (id) {
       loadMessages();
       loadConversation();
     }
-  }, [id]);
+  }, [id, loadConversation, loadMessages]);
 
   useEffect(() => {
     if (typeof EventSource === "undefined") return;
@@ -75,7 +75,7 @@ export default function ConversationPage() {
     });
 
     return () => es.close();
-  }, [id]);
+  }, [id, loadConversation, loadMessages]);
 
   async function takeover() {
     await fetch(`/api/conversations/${id}/takeover`, { method: "POST" });
@@ -137,10 +137,7 @@ export default function ConversationPage() {
             <span className="text-sm text-amber-400">
               Atendida por {conversation?.handledBy?.name}
             </span>
-            <button
-              onClick={release}
-              className="bg-gray-700 px-4 py-2 rounded"
-            >
+            <button onClick={release} className="bg-gray-700 px-4 py-2 rounded">
               Liberar
             </button>
           </div>
@@ -153,8 +150,8 @@ export default function ConversationPage() {
 
       {handled && (
         <p className="text-sm text-amber-300 mb-4">
-          Atendimento humano ativo: suas respostas são enviadas direto ao WhatsApp,
-          sem passar pela IA.
+          Atendimento humano ativo: suas respostas são enviadas direto ao WhatsApp, sem passar pela
+          IA.
         </p>
       )}
 
@@ -188,10 +185,7 @@ export default function ConversationPage() {
           className="flex-1 p-3 rounded text-black"
         />
 
-        <button
-          onClick={sendMessage}
-          className="bg-blue-600 px-6 rounded"
-        >
+        <button onClick={sendMessage} className="bg-blue-600 px-6 rounded">
           Enviar
         </button>
       </div>

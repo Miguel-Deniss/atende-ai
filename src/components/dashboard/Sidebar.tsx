@@ -72,7 +72,10 @@ export function Sidebar() {
         )}
       >
         <div className="flex items-center justify-between p-4 border-b border-border/50">
-          <Link href="/" className={cn("flex items-center gap-2.5", collapsed && "justify-center w-full")}>
+          <Link
+            href="/"
+            className={cn("flex items-center gap-2.5", collapsed && "justify-center w-full")}
+          >
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-400 flex items-center justify-center shadow-lg shadow-blue-500/25 flex-shrink-0">
               <MessageSquareMore className="w-4 h-4 text-white" />
             </div>
@@ -99,7 +102,11 @@ export function Sidebar() {
               collapsed && "absolute -right-3 top-5 bg-sidebar border border-border/50"
             )}
           >
-            {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+            {collapsed ? (
+              <ChevronRight className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronLeft className="w-3.5 h-3.5" />
+            )}
           </button>
         </div>
 
@@ -112,33 +119,35 @@ export function Sidebar() {
               return true;
             })
             .map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group",
-                  isActive
-                    ? "bg-blue-500/15 text-blue-400 font-medium"
-                    : "text-gray-400 hover:text-gray-200 hover:bg-secondary/50",
-                  collapsed && "justify-center px-2"
-                )}
-                title={collapsed ? item.label : undefined}
-              >
-                <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive && "text-blue-400")} />
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
-            );
-          })}
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group",
+                    isActive
+                      ? "bg-blue-500/15 text-blue-400 font-medium"
+                      : "text-gray-400 hover:text-gray-200 hover:bg-secondary/50",
+                    collapsed && "justify-center px-2"
+                  )}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive && "text-blue-400")} />
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
+              );
+            })}
         </nav>
 
         {user?.role === "SUPER_ADMIN" && (
           <div className="px-3 py-1">
-            <Link href="/admin"
+            <Link
+              href="/admin"
               onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all duration-200">
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all duration-200"
+            >
               <Shield className="w-4 h-4" />
               {!collapsed && <span>Admin</span>}
             </Link>
@@ -161,7 +170,10 @@ export function Sidebar() {
 
         <div className={cn("p-3 border-t border-border/50", collapsed && "flex justify-center")}>
           <button
-            onClick={() => { logout(); router.push("/"); }}
+            onClick={() => {
+              logout();
+              router.push("/");
+            }}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 group",
               collapsed && "justify-center px-2"

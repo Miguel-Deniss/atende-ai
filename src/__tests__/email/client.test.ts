@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import {
-  getResendClient,
-  hasResendConfigured,
-  getEmailFrom,
-  getAppUrl,
-} from "@/lib/email/client";
+import { getResendClient, hasResendConfigured, getEmailFrom, getAppUrl } from "@/lib/email/client";
 
 vi.mock("resend", () => {
   return {
@@ -45,7 +40,7 @@ describe("email client", () => {
 
     const client = getClient();
     expect(client).toBeDefined();
-    expect(client.apiKey).toBe("re_test_123");
+    expect((client as unknown as { apiKey: string }).apiKey).toBe("re_test_123");
   });
 
   it("reutiliza a mesma instância (singleton)", async () => {

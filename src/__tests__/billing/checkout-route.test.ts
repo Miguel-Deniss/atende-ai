@@ -171,10 +171,9 @@ describe("POST /api/billing/checkout", () => {
   it("retorna 401 quando não autenticado", async () => {
     vi.mocked(requirePermission).mockResolvedValue({
       user: null as never,
-      response: new Response(
-        JSON.stringify({ success: false, error: "Não autorizado" }),
-        { status: 401 }
-      ) as never,
+      response: new Response(JSON.stringify({ success: false, error: "Não autorizado" }), {
+        status: 401,
+      }) as never,
     });
     const res = await POST(makeRequest({ planCode: "PRO" }));
     expect(res.status).toBe(401);

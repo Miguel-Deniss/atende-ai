@@ -1,9 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/api-guard";
-import {
-  successResponse,
-  errorResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { validateCoupon } from "@/lib/billing/coupons";
 
 export async function POST(request: NextRequest) {

@@ -10,10 +10,7 @@ import {
 import { createLog } from "@/lib/logger";
 import { updateUserSchema } from "@/lib/validators/auth";
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, response } = await requirePermission("company:manage_users");
     if (response) return response;
@@ -41,18 +38,29 @@ export async function PATCH(
 
     const previous = { role: target.role, isActive: target.isActive };
 
-    const updated = await prisma.user.update({
-      where: { id },
-      data: parsed.data,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        phone: true,
-        isActive: true,
-      },
-    });
+    const shouldRevoke = parsed.data.role !== undefined || parsed.data.isActive === false;
+    const [updated] = await prisma.$transaction([
+      prisma.user.update({
+        where: { id },
+        data: parsed.data,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          isActive: true,
+        },
+      }),
+      ...(shouldRevoke
+        ? [
+            prisma.session.updateMany({
+              where: { userId: id, isRevoked: false },
+              data: { isRevoked: true },
+            }),
+          ]
+        : []),
+    ]);
 
     await createLog({
       action: "USER_UPDATE",

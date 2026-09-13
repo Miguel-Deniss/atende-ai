@@ -1,14 +1,21 @@
 import { Metadata } from "next";
+import { Breadcrumbs } from "@/components/public/Breadcrumbs";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidade - AtendeAI",
+  title: "Política de Privacidade",
+  description: "Entenda como o AtendeAI coleta, utiliza, protege e elimina dados pessoais.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-[#0F172A] text-gray-300 p-8">
       <div className="max-w-3xl mx-auto">
+        <Breadcrumbs current="Política de Privacidade" />
         <h1 className="text-3xl font-bold text-white mb-8">Política de Privacidade</h1>
+        <p className="mb-8 text-amber-300">
+          Minuta informativa sujeita a revisão jurídica antes do lançamento comercial.
+        </p>
 
         <Section title="1. Dados Coletados">
           Coletamos os seguintes dados para fornecer nossos serviços:
@@ -39,21 +46,23 @@ export default function PrivacyPage() {
           Compartilhamos dados apenas com:
           <ul className="list-disc ml-6 mt-2 space-y-1">
             <li>Stripe (processamento de pagamentos)</li>
-            <li>OpenAI (processamento de mensagens da IA)</li>
+            <li>Provedor de IA configurado, quando necessário para processar mensagens</li>
+            <li>Meta, para receber e enviar mensagens pela Cloud API do WhatsApp</li>
+            <li>Resend, para entrega de e-mails transacionais</li>
             <li>Provedores de hospedagem e infraestrutura</li>
           </ul>
           <p className="mt-2">Nunca vendemos seus dados pessoais para terceiros.</p>
         </Section>
 
         <Section title="4. Segurança dos Dados">
-          Implementamos medidas de segurança rigorosas:
+          Aplicamos controles técnicos proporcionais ao serviço:
           <ul className="list-disc ml-6 mt-2 space-y-1">
             <li>Criptografia AES-256 para dados sensíveis</li>
             <li>Senhas hashadas com bcrypt (12 rounds)</li>
-            <li>HTTPS obrigatório em toda a aplicação</li>
-            <li>Autenticação em dois fatores para administradores</li>
-            <li>Isolamento completo entre empresas (multi-tenant)</li>
-            <li>Auditoria de todas as alterações</li>
+            <li>Cookies de sessão protegidos e tokens revogáveis</li>
+            <li>Autenticação em dois fatores disponível para ativação</li>
+            <li>Isolamento entre empresas na aplicação e role limitada no banco</li>
+            <li>Registros de auditoria para eventos relevantes</li>
           </ul>
         </Section>
 
@@ -69,25 +78,30 @@ export default function PrivacyPage() {
           </ul>
           <p className="mt-2">
             Você pode exercer esses direitos diretamente no painel:
-            <span className="block ml-2">• Exportação de dados: configurações da empresa (gera um JSON com todos os seus dados)</span>
-            <span className="block ml-2">• Exclusão de dados: configurações da empresa (anônima os dados pessoais de clientes, agendamentos e conversas)</span>
+            <span className="block ml-2">
+              • Exportação protegida dos dados relacionados ao titular
+            </span>
+            <span className="block ml-2">
+              • Anonimização por cliente, incluindo mensagens, agendamentos e conversas
+            </span>
           </p>
         </Section>
 
         <Section title="6. Autenticação em Dois Fatores (2FA)">
-          Ativamos 2FA para administradores da plataforma (super administradores e administradores de empresa).
-          No momento da ativação, são gerados 10 códigos de recuperação únicos de uso único. Guarde-os em local seguro:
-          eles permitem acessar sua conta caso você perca o acesso ao aplicativo autenticador. Códigos usados são invalidados
-          automaticamente e novos podem ser gerados reativando a configuração.
+          O 2FA pode ser ativado pelo usuário. Os códigos de recuperação são de uso único e devem
+          ser guardados em local seguro. O 2FA ainda não é obrigatório para administradores.
         </Section>
 
         <Section title="7. Retenção de Dados">
-          Mantemos seus dados enquanto sua conta estiver ativa. Após o cancelamento, os dados são mantidos por 90 dias para recuperação e depois excluídos permanentemente.
-          Assinaturas e histórico de cobrança são mantidos para fins fiscais e de auditoria pelo prazo legal.
+          Leads do formulário de demonstração são eliminados após 90 dias. Eventos técnicos e
+          tentativas de login seguem os prazos operacionais descritos na documentação. Dados da
+          conta e registros fiscais seguem o contrato e as obrigações legais aplicáveis; os prazos
+          finais dependem de revisão jurídica e contábil.
         </Section>
 
         <Section title="8. Cookies">
-          Utilizamos cookies essenciais para o funcionamento da plataforma. Não utilizamos cookies de rastreamento ou publicidade.
+          Utilizamos cookies essenciais para o funcionamento da plataforma. Não utilizamos cookies
+          de rastreamento ou publicidade.
         </Section>
 
         <Section title="9. Contato">
@@ -95,7 +109,7 @@ export default function PrivacyPage() {
           <p className="mt-2">Email: privacidade@atendeai.com</p>
         </Section>
 
-        <p className="text-sm text-gray-500 mt-8">Última atualização: Agosto 2026</p>
+        <p className="text-sm text-gray-500 mt-8">Última atualização: Setembro de 2026</p>
       </div>
     </div>
   );

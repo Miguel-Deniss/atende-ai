@@ -33,7 +33,8 @@ const features = [
   {
     icon: Bell,
     title: "Lembretes automáticos",
-    description: "Envie lembretes automáticos para reduzir faltas e aumentar a taxa de comparecimento.",
+    description:
+      "Envie lembretes automáticos para reduzir faltas e aumentar a taxa de comparecimento.",
   },
   {
     icon: BarChart3,
@@ -58,7 +59,8 @@ const features = [
   {
     icon: Smartphone,
     title: "Integração com WhatsApp",
-    description: "Funciona direto no WhatsApp Web. Seus clientes não precisam baixar nada.",
+    description:
+      "Integração oficial pela Meta Cloud API; seus clientes continuam usando o WhatsApp normalmente.",
   },
   {
     icon: Settings2,
@@ -79,8 +81,7 @@ export function Features() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            Tudo que você precisa em{" "}
-            <span className="gradient-text">um só lugar</span>
+            Tudo que você precisa em <span className="gradient-text">um só lugar</span>
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto text-lg">
             Recursos poderosos para transformar o atendimento do seu negócio
@@ -101,12 +102,8 @@ export function Features() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-400/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
                 <feature.icon className="w-5 h-5 text-blue-400" />
               </div>
-              <h3 className="text-base font-semibold text-white mb-2">
-                {feature.title}
-              </h3>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                {feature.description}
-              </p>
+              <h3 className="text-base font-semibold text-white mb-2">{feature.title}</h3>
+              <p className="text-sm text-gray-400 leading-relaxed">{feature.description}</p>
             </motion.div>
           ))}
         </div>

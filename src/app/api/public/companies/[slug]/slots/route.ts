@@ -2,10 +2,7 @@ import { NextRequest } from "next/server";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { getPublicCompany, getAvailableSlots } from "@/lib/booking/public-booking";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
     const company = await getPublicCompany(slug);

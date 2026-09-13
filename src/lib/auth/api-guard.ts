@@ -1,15 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/session";
-import {
-  unauthorizedResponse,
-  forbiddenResponse,
-  errorResponse,
-} from "@/lib/auth/api-response";
-import {
-  authorize,
-  can,
-  type Permission,
-  type PermissionRole,
-} from "./permissions";
+import { unauthorizedResponse, forbiddenResponse, errorResponse } from "@/lib/auth/api-response";
+import { authorize, can, type Permission, type PermissionRole } from "./permissions";
 
 export type ScopedUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
@@ -32,9 +23,7 @@ export async function requireAuth(): Promise<GuardResult> {
   return { user, response: null };
 }
 
-export async function requireRole(
-  roles: PermissionRole[]
-): Promise<GuardResult> {
+export async function requireRole(roles: PermissionRole[]): Promise<GuardResult> {
   const { user, response } = await requireAuth();
   if (response) return { user, response };
 
@@ -45,9 +34,7 @@ export async function requireRole(
   return { user, response: null };
 }
 
-export async function requirePermission(
-  permission: Permission
-): Promise<GuardResult> {
+export async function requirePermission(permission: Permission): Promise<GuardResult> {
   const { user, response } = await requireAuth();
   if (response) return { user, response };
 

@@ -4,34 +4,19 @@ import { containsInventedInfo, isGarbageResponse } from "./guardrails";
 import { detectIntent, parseConfirmation, type IntentFallback } from "./intention-detector";
 import { extractSlots } from "./slot-extractor";
 import { buildPrompt } from "./prompt-builder";
-import {
-  computeAppointmentStep,
-  mergeSlots,
-  type AppointmentDraft,
-} from "./flows/appointment";
-import {
-  loadConversationState,
-  saveConversationState,
-} from "./conversation-state";
+import { computeAppointmentStep, mergeSlots, type AppointmentDraft } from "./flows/appointment";
+import { loadConversationState, saveConversationState } from "./conversation-state";
 import { resolveAppointmentDate } from "./appointment-date";
 import { createLog } from "@/lib/logger";
-import {
-  AIError,
-  classifyAIError,
-  logAIError,
-  type AIErrorKind,
-} from "./errors";
-import type {
-  AIMessage,
-  CompanyContext,
-  ConversationState,
-  LLMMessage,
-} from "./types";
+import { getAvailableSlots } from "@/lib/booking/public-booking";
+import { AIError, classifyAIError, logAIError, type AIErrorKind } from "./errors";
+import type { AIMessage, CompanyContext, ConversationState, LLMMessage } from "./types";
 
 export interface SaveMessageParams {
   conversationId: string;
   role: "user" | "assistant";
   content: string;
+  externalId?: string;
 }
 
 export interface ConversationManagerDeps {
@@ -46,6 +31,7 @@ export interface ConversationManagerDeps {
 export interface ProcessMessageInput {
   conversationId: string;
   message: string;
+  userMessageExternalId?: string;
   company: CompanyContext;
   knownName: string | null;
   deps: ConversationManagerDeps;
@@ -60,13 +46,23 @@ export interface ProcessMessageResult {
   aiErrorKind?: AIErrorKind;
 }
 
-export async function processMessage(
-  input: ProcessMessageInput
-): Promise<ProcessMessageResult> {
-  const { conversationId, message, company, knownName, deps, intentFallback } =
-    input;
+export async function processMessage(input: ProcessMessageInput): Promise<ProcessMessageResult> {
+  const {
+    conversationId,
+    message,
+    userMessageExternalId,
+    company,
+    knownName,
+    deps,
+    intentFallback,
+  } = input;
 
-  await deps.saveMessage({ conversationId, role: "user", content: message });
+  await deps.saveMessage({
+    conversationId,
+    role: "user",
+    content: message,
+    externalId: userMessageExternalId,
+  });
 
   const prevState = await deps.loadState(conversationId);
 
@@ -90,8 +86,7 @@ export async function processMessage(
   let shouldPersist = false;
 
   if (intent === "appointment") {
-    const freshBooking =
-      prevState.step === "finished" || prevState.intent !== "appointment";
+    const freshBooking = prevState.step === "finished" || prevState.intent !== "appointment";
 
     if (freshBooking) {
       slots = emptySlots();
@@ -145,10 +140,7 @@ export async function processMessage(
     ]);
 
     if (containsInventedInfo(llmResponse, company)) {
-      throw new AIError(
-        "A IA gerou resposta com informacoes incorretas.",
-        "INVALID_RESPONSE"
-      );
+      throw new AIError("A IA gerou resposta com informacoes incorretas.", "INVALID_RESPONSE");
     }
 
     if (isGarbageResponse(llmResponse)) {
@@ -202,11 +194,10 @@ export function createDefaultDeps(): ConversationManagerDeps {
   return {
     llm: (messages) => chat(messages),
     loadState: (conversationId) => loadConversationState(conversationId),
-    saveState: (conversationId, state) =>
-      saveConversationState(conversationId, state),
-    saveMessage: ({ conversationId, role, content }) =>
+    saveState: (conversationId, state) => saveConversationState(conversationId, state),
+    saveMessage: ({ conversationId, role, content, externalId }) =>
       prisma.message
-        .create({ data: { conversationId, role, content } })
+        .create({ data: { conversationId, role, content, externalId } })
         .then(() => undefined),
     loadRecentMessages: (conversationId, limit) =>
       prisma.message
@@ -215,11 +206,11 @@ export function createDefaultDeps(): ConversationManagerDeps {
           orderBy: { createdAt: "desc" },
           take: limit,
         })
-        .then(rows =>
+        .then((rows) =>
           rows
             .slice()
             .reverse()
-            .map(row => ({
+            .map((row) => ({
               role: row.role === "assistant" ? ("assistant" as const) : ("user" as const),
               content: row.content,
             }))
@@ -227,13 +218,20 @@ export function createDefaultDeps(): ConversationManagerDeps {
     persistAppointment: async (draft, conversationId) => {
       const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
-        select: { companyId: true, clientId: true },
+        select: {
+          companyId: true,
+          clientId: true,
+          company: {
+            select: {
+              hours: true,
+              aiConfig: { select: { services: { select: { name: true } } } },
+            },
+          },
+        },
       });
 
       if (!conversation) {
-        throw new Error(
-          "Conversa nao encontrada para persistir o agendamento."
-        );
+        throw new Error("Conversa nao encontrada para persistir o agendamento.");
       }
 
       if (!/^\d{2}:\d{2}$/.test(draft.time)) {
@@ -245,12 +243,34 @@ export function createDefaultDeps(): ConversationManagerDeps {
         throw new Error("Nao foi possivel resolver a data do agendamento.");
       }
 
+      const service = conversation.company.aiConfig?.services.find(
+        (candidate) =>
+          candidate.name.toLocaleLowerCase("pt-BR") === draft.service.toLocaleLowerCase("pt-BR")
+      );
+      if (!service) {
+        throw new Error("Servico nao pertence a empresa.");
+      }
+
+      const dateKey = [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+      ].join("-");
+      const availableSlots = await getAvailableSlots(
+        conversation.companyId,
+        dateKey,
+        conversation.company.hours
+      );
+      if (!availableSlots.includes(draft.time)) {
+        throw new Error("Horario indisponivel.");
+      }
+
       const appointment = await prisma.appointment.create({
         data: {
           time: draft.time,
           date,
           name: draft.name,
-          service: draft.service,
+          service: service.name,
           status: "pending",
           companyId: conversation.companyId,
           clientId: conversation.clientId ?? undefined,

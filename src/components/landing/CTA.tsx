@@ -34,16 +34,18 @@ export function CTA() {
           </motion.div>
 
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
-            Pronto para automatizar{" "}
-            <span className="gradient-text">seu atendimento</span>?
+            Pronto para automatizar <span className="gradient-text">seu atendimento</span>?
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto text-lg mb-8">
-            Experimente gratuitamente e veja como a IA pode transformar seu negócio.
-            Sem compromisso, sem cartão de crédito.
+            Experimente gratuitamente e veja como a IA pode transformar seu negócio. Sem
+            compromisso, sem cartão de crédito.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/dashboard">
-              <Button size="lg" className="text-base shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 w-full sm:w-auto">
+            <Link href="/register">
+              <Button
+                size="lg"
+                className="text-base shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 w-full sm:w-auto"
+              >
                 Começar Agora
                 <ArrowRight className="w-5 h-5" />
               </Button>

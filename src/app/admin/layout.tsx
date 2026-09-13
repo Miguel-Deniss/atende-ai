@@ -4,8 +4,18 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  Building2, BarChart3, FileText, Shield, Menu, X,
-  Loader2, ChevronLeft, Users, Wallet, TicketPercent, Settings,
+  Building2,
+  BarChart3,
+  FileText,
+  Shield,
+  Menu,
+  X,
+  Loader2,
+  ChevronLeft,
+  Users,
+  Wallet,
+  TicketPercent,
+  Settings,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -43,9 +53,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-[#0F172A]">
       <div className="flex h-screen overflow-hidden">
-        <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#111827] border-r border-border/50 transform transition-transform duration-200 lg:translate-x-0 lg:static lg:inset-auto ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}>
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#111827] border-r border-border/50 transform transition-transform duration-200 lg:translate-x-0 lg:static lg:inset-auto ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
           <div className="h-full flex flex-col">
             <div className="p-4 border-b border-border/50">
               <div className="flex items-center justify-between">
@@ -55,7 +67,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   </div>
                   <span className="font-bold text-white">Admin</span>
                 </Link>
-                <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 rounded text-gray-400 hover:text-white">
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="lg:hidden p-1 rounded text-gray-400 hover:text-white"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -65,13 +80,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {adminLinks.map((link) => {
                 const isActive = pathname === link.href;
                 return (
-                  <Link key={link.href} href={link.href}
+                  <Link
+                    key={link.href}
+                    href={link.href}
                     onClick={() => setSidebarOpen(false)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                       isActive
                         ? "bg-blue-500/20 text-blue-400"
                         : "text-gray-400 hover:text-white hover:bg-secondary/30"
-                    }`}>
+                    }`}
+                  >
                     <link.icon className="w-4 h-4" />
                     {link.label}
                   </Link>
@@ -80,8 +98,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </nav>
 
             <div className="p-4 border-t border-border/50">
-              <Link href="/dashboard"
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-secondary/30 transition-all mb-2">
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-secondary/30 transition-all mb-2"
+              >
                 <ChevronLeft className="w-4 h-4" />
                 Voltar ao app
               </Link>
@@ -100,7 +120,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <main className="flex-1 overflow-y-auto">
           <div className="lg:hidden sticky top-0 z-40 bg-[#0F172A]/80 backdrop-blur-md border-b border-border/50 p-3">
-            <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg text-gray-400 hover:text-white">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 rounded-lg text-gray-400 hover:text-white"
+            >
               <Menu className="w-5 h-5" />
             </button>
           </div>

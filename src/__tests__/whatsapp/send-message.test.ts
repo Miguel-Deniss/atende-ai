@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  sendWhatsAppMessage,
-  WHATSAPP_GRAPH_VERSION,
-} from "@/lib/whatsapp/send-message";
+import { sendWhatsAppMessage, WHATSAPP_GRAPH_VERSION } from "@/lib/whatsapp/send-message";
 
 describe("sendWhatsAppMessage", () => {
   const fetchMock = vi.fn();

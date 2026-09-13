@@ -89,9 +89,7 @@ export default function ForgotPasswordPage() {
                 <Mail className="w-7 h-7 text-blue-400" />
               </div>
               <h1 className="text-xl font-bold text-white mb-2">Recuperar senha</h1>
-              <p className="text-sm text-gray-500">
-                Digite seu email para receber instruções.
-              </p>
+              <p className="text-sm text-gray-500">Digite seu email para receber instruções.</p>
             </div>
 
             {error && <p className="text-sm text-red-400 text-center mb-4">{error}</p>}
@@ -121,7 +119,8 @@ export default function ForgotPasswordPage() {
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    Enviar <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    Enviar{" "}
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
               </Button>

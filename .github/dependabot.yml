@@ -19,8 +19,6 @@ updates:
     ignore:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "next"
-        update-types: ["version-update:semver-patch"]
       - dependency-name: "react"
         update-types: ["version-update:semver-patch"]
       - dependency-name: "react-dom"

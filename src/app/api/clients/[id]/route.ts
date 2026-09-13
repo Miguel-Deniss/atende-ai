@@ -4,6 +4,8 @@ import { requirePermission } from "@/lib/auth/api-guard";
 import { successResponse, errorResponse, notFoundResponse } from "@/lib/auth/api-response";
 import { clientSchema } from "@/lib/validators/auth";
 import { createLog } from "@/lib/logger";
+import { normalizeBrazilianPhone } from "@/lib/clients/phone";
+import { Prisma } from "@prisma/client";
 
 async function getClientForCompany(clientId: string, companyId: string) {
   return prisma.client.findFirst({
@@ -42,9 +44,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);
     }
 
+    const data = parsed.data.phone
+      ? { ...parsed.data, phone: normalizeBrazilianPhone(parsed.data.phone) }
+      : parsed.data;
+
     const client = await prisma.client.update({
       where: { id },
-      data: parsed.data,
+      data,
     });
 
     await createLog({
@@ -59,12 +65,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
 
     return successResponse(client);
-  } catch {
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse("Ja existe um cliente com este telefone", 409);
+    }
+    if (error instanceof Error && error.message === "Telefone invalido") {
+      return errorResponse("Telefone invalido", 400);
+    }
     return errorResponse("Erro interno do servidor", 500);
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const { user, response } = await requirePermission("company:manage_clients");
     if (response) return response;

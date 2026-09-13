@@ -132,10 +132,7 @@ export async function sendPasswordResetEmail(params: {
     ipAddress: params.ipAddress,
     userAgent: params.userAgent,
     template: (
-      <PasswordResetTemplate
-        resetUrl={params.resetUrl}
-        userEmail={params.userEmail ?? params.to}
-      />
+      <PasswordResetTemplate resetUrl={params.resetUrl} userEmail={params.userEmail ?? params.to} />
     ),
   });
 }
@@ -219,9 +216,7 @@ export async function sendTwoFactorEmail(params: {
     templateName: "TwoFactor",
     companyId: params.companyId,
     userId: params.userId,
-    template: (
-      <TwoFactorTemplate code={params.code} expiresInMinutes={params.expiresInMinutes} />
-    ),
+    template: <TwoFactorTemplate code={params.code} expiresInMinutes={params.expiresInMinutes} />,
   });
 }
 

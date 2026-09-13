@@ -30,14 +30,8 @@ export async function GET() {
       phone: company.phone ?? "",
       address: company.address ?? "",
       hours: company.hours ?? "",
-      welcomeMessage:
-        company.welcomeMessage ??
-        company.aiConfig?.welcomeMessage ??
-        "",
-      absenceMessage:
-        company.absenceMessage ??
-        company.aiConfig?.absenceMessage ??
-        "",
+      welcomeMessage: company.welcomeMessage ?? company.aiConfig?.welcomeMessage ?? "",
+      absenceMessage: company.absenceMessage ?? company.aiConfig?.absenceMessage ?? "",
       services: company.aiConfig?.services ?? [],
       faq: company.aiConfig?.faq ?? [],
       autoTransfer: company.settings?.autoTransfer ?? true,
@@ -55,84 +49,89 @@ export async function PUT(request: NextRequest) {
     const { user, response } = await requirePermission("company:manage_settings");
     if (response) return response;
 
-    const body = await request.json();
-    console.log("BODY SETTINGS:", body);
-
-    const parsed = companySettingsSchema.safeParse(body);
-    console.log("PARSED:", parsed);
+    const parsed = companySettingsSchema.safeParse(await request.json());
 
     if (!parsed.success) {
       return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);
     }
 
-    const { services, faq, welcomeMessage, absenceMessage, autoTransfer, autoReminders, requireConfirmation, publicBookingEnabled, companyName, phone, address, hours, ...rest } = parsed.data;
+    const {
+      services,
+      faq,
+      welcomeMessage,
+      absenceMessage,
+      autoTransfer,
+      autoReminders,
+      requireConfirmation,
+      publicBookingEnabled,
+      companyName,
+      phone,
+      address,
+      hours,
+    } = parsed.data;
 
-    const companyData: Record<string, unknown> = {};
-    if (companyName !== undefined) companyData.name = companyName;
-    if (phone !== undefined) companyData.phone = phone;
-    if (address !== undefined) companyData.address = address;
-    if (hours !== undefined) companyData.hours = hours;
-    if (welcomeMessage !== undefined) companyData.welcomeMessage = welcomeMessage;
-    if (absenceMessage !== undefined) companyData.absenceMessage = absenceMessage;
+    await prisma.$transaction(async (tx) => {
+      const companyData: Record<string, unknown> = {};
+      if (companyName !== undefined) companyData.name = companyName;
+      if (phone !== undefined) companyData.phone = phone;
+      if (address !== undefined) companyData.address = address;
+      if (hours !== undefined) companyData.hours = hours;
+      if (welcomeMessage !== undefined) companyData.welcomeMessage = welcomeMessage;
+      if (absenceMessage !== undefined) companyData.absenceMessage = absenceMessage;
 
-    if (Object.keys(companyData).length > 0) {
-      await prisma.company.update({
-        where: { id: user.companyId },
-        data: companyData,
-      });
-    }
-
-    if (autoTransfer !== undefined || autoReminders !== undefined || requireConfirmation !== undefined || publicBookingEnabled !== undefined) {
-      const settingsData: Record<string, unknown> = {};
-      if (autoTransfer !== undefined) settingsData.autoTransfer = autoTransfer;
-      if (autoReminders !== undefined) settingsData.autoReminders = autoReminders;
-      if (requireConfirmation !== undefined) settingsData.requireConfirmation = requireConfirmation;
-      if (publicBookingEnabled !== undefined) settingsData.publicBookingEnabled = publicBookingEnabled;
-
-      await prisma.companySettings.upsert({
-        where: { companyId: user.companyId },
-        update: settingsData,
-        create: { companyId: user.companyId, ...settingsData },
-      });
-    }
-
-    if (services || faq || welcomeMessage || absenceMessage) {
-      const aiData: Record<string, unknown> = {};
-      if (welcomeMessage !== undefined) aiData.welcomeMessage = welcomeMessage;
-      if (absenceMessage !== undefined) aiData.absenceMessage = absenceMessage;
-
-      const aiConfig = await prisma.aIConfig.upsert({
-        where: { companyId: user.companyId },
-        update: aiData,
-        create: { companyId: user.companyId, ...aiData },
-      });
-
-      if (services) {
-        await prisma.service.deleteMany({ where: { aiConfigId: aiConfig.id } });
-        if (services.length > 0) {
-          await prisma.service.createMany({
-            data: services.map((s: { name: string; price: string }) => ({
-              name: s.name,
-              price: s.price,
-              aiConfigId: aiConfig.id,
-            })),
-          });
-        }
+      if (Object.keys(companyData).length > 0) {
+        await tx.company.update({ where: { id: user.companyId }, data: companyData });
       }
 
-      if (faq) {
-        await prisma.fAQ.deleteMany({ where: { aiConfigId: aiConfig.id } });
-        if (faq.length > 0) {
-          await prisma.fAQ.createMany({
-            data: faq.map((f: { question: string; answer: string }) => ({
-              question: f.question,
-              answer: f.answer,
-              aiConfigId: aiConfig.id,
-            })),
-          });
+      if (
+        autoTransfer !== undefined ||
+        autoReminders !== undefined ||
+        requireConfirmation !== undefined ||
+        publicBookingEnabled !== undefined
+      ) {
+        const settingsData: Record<string, unknown> = {};
+        if (autoTransfer !== undefined) settingsData.autoTransfer = autoTransfer;
+        if (autoReminders !== undefined) settingsData.autoReminders = autoReminders;
+        if (requireConfirmation !== undefined)
+          settingsData.requireConfirmation = requireConfirmation;
+        if (publicBookingEnabled !== undefined)
+          settingsData.publicBookingEnabled = publicBookingEnabled;
+        await tx.companySettings.upsert({
+          where: { companyId: user.companyId },
+          update: settingsData,
+          create: { companyId: user.companyId, ...settingsData },
+        });
+      }
+
+      if (services || faq || welcomeMessage !== undefined || absenceMessage !== undefined) {
+        const aiData: Record<string, unknown> = {};
+        if (welcomeMessage !== undefined) aiData.welcomeMessage = welcomeMessage;
+        if (absenceMessage !== undefined) aiData.absenceMessage = absenceMessage;
+        const aiConfig = await tx.aIConfig.upsert({
+          where: { companyId: user.companyId },
+          update: aiData,
+          create: { companyId: user.companyId, ...aiData },
+        });
+
+        if (services) {
+          await tx.service.deleteMany({ where: { aiConfigId: aiConfig.id } });
+          if (services.length > 0) {
+            await tx.service.createMany({
+              data: services.map((service) => ({ ...service, aiConfigId: aiConfig.id })),
+            });
+          }
+        }
+
+        if (faq) {
+          await tx.fAQ.deleteMany({ where: { aiConfigId: aiConfig.id } });
+          if (faq.length > 0) {
+            await tx.fAQ.createMany({
+              data: faq.map((item) => ({ ...item, aiConfigId: aiConfig.id })),
+            });
+          }
         }
       }
-    }
+    });
 
     await createLog({
       action: "AI_CONFIG_CHANGE",

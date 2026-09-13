@@ -13,32 +13,24 @@ describe("computeAppointmentStep", () => {
   });
 
   it("deve pedir a data depois do servico", () => {
-    expect(
-      computeAppointmentStep(slots({ service: "Barba" }), true)
-    ).toBe("waiting_date");
+    expect(computeAppointmentStep(slots({ service: "Barba" }), true)).toBe("waiting_date");
   });
 
   it("deve pedir o horario depois da data", () => {
-    expect(
-      computeAppointmentStep(slots({ service: "Barba", date: "sabado" }), true)
-    ).toBe("waiting_time");
+    expect(computeAppointmentStep(slots({ service: "Barba", date: "sabado" }), true)).toBe(
+      "waiting_time"
+    );
   });
 
   it("deve pedir o nome quando necessario", () => {
     expect(
-      computeAppointmentStep(
-        slots({ service: "Barba", date: "sabado", time: "09:00" }),
-        true
-      )
+      computeAppointmentStep(slots({ service: "Barba", date: "sabado", time: "09:00" }), true)
     ).toBe("waiting_name");
   });
 
   it("deve pular o nome quando nao for necessario", () => {
     expect(
-      computeAppointmentStep(
-        slots({ service: "Barba", date: "sabado", time: "09:00" }),
-        false
-      )
+      computeAppointmentStep(slots({ service: "Barba", date: "sabado", time: "09:00" }), false)
     ).toBe("confirming");
   });
 
@@ -68,38 +60,34 @@ describe("mergeSlots", () => {
   });
 
   it("deve resetar data e horario quando o servico muda", () => {
-    const result = mergeSlots(
-      slots({ service: "Corte", date: "sabado", time: "09:00" }),
-      { service: "Barba" }
-    );
+    const result = mergeSlots(slots({ service: "Corte", date: "sabado", time: "09:00" }), {
+      service: "Barba",
+    });
     expect(result.service).toBe("Barba");
     expect(result.date).toBeNull();
     expect(result.time).toBeNull();
   });
 
   it("deve manter data/horario quando o servico nao muda", () => {
-    const result = mergeSlots(
-      slots({ service: "Barba", date: "sabado", time: "09:00" }),
-      { service: "Barba" }
-    );
+    const result = mergeSlots(slots({ service: "Barba", date: "sabado", time: "09:00" }), {
+      service: "Barba",
+    });
     expect(result.date).toBe("sabado");
     expect(result.time).toBe("09:00");
   });
 
   it("deve resetar horario quando a data muda", () => {
-    const result = mergeSlots(
-      slots({ service: "Barba", date: "sabado", time: "09:00" }),
-      { date: "domingo" }
-    );
+    const result = mergeSlots(slots({ service: "Barba", date: "sabado", time: "09:00" }), {
+      date: "domingo",
+    });
     expect(result.date).toBe("domingo");
     expect(result.time).toBeNull();
   });
 
   it("deve manter horario quando a data nao muda", () => {
-    const result = mergeSlots(
-      slots({ service: "Barba", date: "sabado", time: "09:00" }),
-      { date: "sabado" }
-    );
+    const result = mergeSlots(slots({ service: "Barba", date: "sabado", time: "09:00" }), {
+      date: "sabado",
+    });
     expect(result.time).toBe("09:00");
   });
 

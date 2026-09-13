@@ -6,22 +6,34 @@ import "./globals.css";
 
 const poppins = Poppins({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-poppins",
 });
 
 export const metadata: Metadata = {
-  title: "AtendeAI - Atendente Virtual com IA para WhatsApp",
+  metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
+  title: {
+    default: "AtendeAI — Atendimento com IA para WhatsApp",
+    template: "%s | AtendeAI",
+  },
   description:
-    "Automatize seu atendimento no WhatsApp com Inteligência Artificial. Responda clientes automaticamente, agende consultas, envie lembretes e aumente suas vendas.",
-  keywords: [
-    "atendente virtual",
-    "IA",
-    "WhatsApp",
-    "automação",
-    "agendamento",
-    "chatbot",
-  ],
+    "Centralize conversas, automatize respostas e organize agendamentos pelo WhatsApp usando a Meta Cloud API.",
+  keywords: ["atendente virtual", "IA", "WhatsApp", "automação", "agendamento", "chatbot"],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "/",
+    siteName: "AtendeAI",
+    title: "AtendeAI — Atendimento com IA para WhatsApp",
+    description: "Conversas, automação, transferência humana e agenda em um só fluxo.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AtendeAI — Atendimento com IA para WhatsApp",
+    description: "Conversas, automação, transferência humana e agenda em um só fluxo.",
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({

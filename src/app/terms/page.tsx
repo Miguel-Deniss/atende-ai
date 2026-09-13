@@ -1,21 +1,30 @@
 import { Metadata } from "next";
+import { Breadcrumbs } from "@/components/public/Breadcrumbs";
 
 export const metadata: Metadata = {
-  title: "Termos de Uso - AtendeAI",
+  title: "Termos de Uso",
+  description: "Conheça as condições de uso, responsabilidades e regras da plataforma AtendeAI.",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-[#0F172A] text-gray-300 p-8">
       <div className="max-w-3xl mx-auto">
+        <Breadcrumbs current="Termos de Uso" />
         <h1 className="text-3xl font-bold text-white mb-8">Termos de Uso</h1>
+        <p className="mb-8 text-amber-300">
+          Minuta sujeita a revisão jurídica e comercial antes do lançamento.
+        </p>
 
         <Section title="1. Aceitação dos Termos">
-          Ao utilizar a plataforma AtendeAI, você concorda com estes termos de uso. Se não concordar, não utilize nossos serviços.
+          Ao utilizar a plataforma AtendeAI, você concorda com estes termos de uso. Se não
+          concordar, não utilize nossos serviços.
         </Section>
 
         <Section title="2. Descrição do Serviço">
-          O AtendeAI é uma plataforma SaaS que fornece atendimento automatizado via WhatsApp utilizando inteligência artificial.
+          O AtendeAI é uma plataforma SaaS que fornece atendimento automatizado via WhatsApp
+          utilizando inteligência artificial.
         </Section>
 
         <Section title="3. Responsabilidades do Usuário">
@@ -29,11 +38,13 @@ export default function TermsPage() {
         </Section>
 
         <Section title="4. Propriedade Intelectual">
-          Todo o código, design e conteúdo da plataforma são propriedade exclusiva do AtendeAI. O usuário recebe uma licença limitada para uso do serviço.
+          Todo o código, design e conteúdo da plataforma são propriedade exclusiva do AtendeAI. O
+          usuário recebe uma licença limitada para uso do serviço.
         </Section>
 
         <Section title="5. Privacidade e Dados">
-          O tratamento de dados pessoais segue nossa Política de Privacidade. Ao usar o serviço, você consente com a coleta e uso de dados conforme descrito na política.
+          O tratamento de dados pessoais segue nossa Política de Privacidade. Ao usar o serviço,
+          você consente com a coleta e uso de dados conforme descrito na política.
         </Section>
 
         <Section title="6. Limitação de Responsabilidade">
@@ -47,22 +58,23 @@ export default function TermsPage() {
         </Section>
 
         <Section title="7. Cancelamento e Exclusão">
-          O usuário pode cancelar sua assinatura a qualquer momento. Os dados são mantidos por 90 dias após o cancelamento e depois excluídos permanentemente.
+          O usuário pode solicitar o cancelamento da assinatura. Retenção, exportação, anonimização
+          e exclusão seguem a Política de Privacidade, o contrato e obrigações legais aplicáveis.
         </Section>
 
         <Section title="8. Modificações dos Termos">
-          Reservamo-nos o direito de modificar estes termos a qualquer momento. Mudanças significativas serão comunicadas por email.
+          Reservamo-nos o direito de modificar estes termos a qualquer momento. Mudanças
+          significativas serão comunicadas por email.
         </Section>
 
         <Section title="9. Lei Aplicável">
-          Estes termos são regidos pela legislação brasileira. Qualquer disputa será resolvida no foro da cidade de São Paulo, SP.
+          Estes termos são regidos pela legislação brasileira. Qualquer disputa será resolvida no
+          foro da cidade de São Paulo, SP.
         </Section>
 
-        <Section title="10. Contato">
-          Dúvidas sobre estes termos: contato@atendeai.com
-        </Section>
+        <Section title="10. Contato">Dúvidas sobre estes termos: contato@atendeai.com</Section>
 
-        <p className="text-sm text-gray-500 mt-8">Última atualização: Julho 2026</p>
+        <p className="text-sm text-gray-500 mt-8">Última atualização: Setembro de 2026</p>
       </div>
     </div>
   );

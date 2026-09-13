@@ -3,8 +3,7 @@ import { openaiCircuitBreaker } from "@/lib/resilience/circuit-breaker";
 import { logger } from "@/lib/logger/structured";
 import { classifyAIError } from "./errors";
 
-const OLLAMA_URL =
-  process.env.OLLAMA_URL ?? "http://localhost:11434";
+const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://localhost:11434";
 
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "qwen3:8b";
 
@@ -48,7 +47,10 @@ async function chatWithOllama(messages: LLMMessage[]): Promise<string> {
     throw new Error(`Modelo não gerou conteúdo (eval_count=${data.eval_count})`);
   }
 
-  if (data.done_reason === "stop" && (!data.message?.content || data.message.content.trim() === "")) {
+  if (
+    data.done_reason === "stop" &&
+    (!data.message?.content || data.message.content.trim() === "")
+  ) {
     throw new Error("Modelo não gerou conteúdo (vazio com done=stop)");
   }
 

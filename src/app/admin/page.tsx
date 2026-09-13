@@ -22,7 +22,9 @@ export default function AdminPage() {
   useEffect(() => {
     fetch("/api/admin/stats", { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => { if (d.success) setStats(d.data); })
+      .then((d) => {
+        if (d.success) setStats(d.data);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -39,10 +41,26 @@ export default function AdminPage() {
   }
 
   const cards = [
-    { icon: Building2, label: "Empresas Ativas", value: stats.companies.active, total: stats.companies.total, color: "from-blue-500 to-blue-400" },
+    {
+      icon: Building2,
+      label: "Empresas Ativas",
+      value: stats.companies.active,
+      total: stats.companies.total,
+      color: "from-blue-500 to-blue-400",
+    },
     { icon: Users, label: "Usuários", value: stats.users, color: "from-violet-500 to-violet-400" },
-    { icon: TrendingUp, label: "Clientes", value: stats.clients, color: "from-emerald-500 to-emerald-400" },
-    { icon: DollarSign, label: "MRR Estimado", value: `R$ ${stats.estimatedMRR.toLocaleString("pt-BR")}`, color: "from-amber-500 to-amber-400" },
+    {
+      icon: TrendingUp,
+      label: "Clientes",
+      value: stats.clients,
+      color: "from-emerald-500 to-emerald-400",
+    },
+    {
+      icon: DollarSign,
+      label: "MRR Estimado",
+      value: `R$ ${stats.estimatedMRR.toLocaleString("pt-BR")}`,
+      color: "from-amber-500 to-amber-400",
+    },
   ];
 
   return (
@@ -54,7 +72,12 @@ export default function AdminPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card, i) => (
-          <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+          <motion.div
+            key={card.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+          >
             <Card className="bg-card/50 border-border/50">
               <CardContent className="p-5">
                 <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.color} p-0.5 mb-3`}>
@@ -81,11 +104,18 @@ export default function AdminPage() {
                 return (
                   <div key={plan}>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-300">{plan === "STARTER" ? "Starter" : plan === "PRO" ? "Pro" : "Business"}</span>
-                      <span className="text-gray-400">{count} ({pct.toFixed(0)}%)</span>
+                      <span className="text-gray-300">
+                        {plan === "STARTER" ? "Starter" : plan === "PRO" ? "Pro" : "Business"}
+                      </span>
+                      <span className="text-gray-400">
+                        {count} ({pct.toFixed(0)}%)
+                      </span>
                     </div>
                     <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   </div>
                 );
@@ -103,7 +133,10 @@ export default function AdminPage() {
               <Row label="Empresas suspensas" value={stats.companies.suspended} />
               <Row label="Novas este mês" value={stats.newCompaniesThisMonth} />
               <Row label="Agendamentos" value={stats.appointments} />
-              <Row label="MRR Estimado" value={`R$ ${stats.estimatedMRR.toLocaleString("pt-BR")}`} />
+              <Row
+                label="MRR Estimado"
+                value={`R$ ${stats.estimatedMRR.toLocaleString("pt-BR")}`}
+              />
             </div>
           </CardContent>
         </Card>

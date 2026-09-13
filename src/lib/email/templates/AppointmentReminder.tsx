@@ -23,10 +23,11 @@ export function AppointmentReminderTemplate({
       preview={`Lembrete: seu horário em ${companyName} é ${date} às ${time}`}
       title={`Confirmação do seu horário em ${companyName}`}
     >
-      <Text style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 24px 0" }}>
-        Olá, <strong style={{ color: "#F8FAFC" }}>{customerName}</strong>! Passando para
-        lembrar do seu agendamento em{" "}
-        <strong style={{ color: "#F8FAFC" }}>{companyName}</strong>.
+      <Text
+        style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 24px 0" }}
+      >
+        Olá, <strong style={{ color: "#F8FAFC" }}>{customerName}</strong>! Passando para lembrar do
+        seu agendamento em <strong style={{ color: "#F8FAFC" }}>{companyName}</strong>.
       </Text>
 
       <Section
@@ -69,10 +70,13 @@ export function AppointmentReminderTemplate({
       </Section>
 
       <Text style={{ color: "#64748B", fontSize: "13px", lineHeight: "20px", margin: "0 0 8px 0" }}>
-        Se precisar cancelar ou remarcar, basta responder esta mensagem ou entrar em
-        contato com a empresa.
+        Se precisar cancelar ou remarcar, basta responder esta mensagem ou entrar em contato com a
+        empresa.
       </Text>
-      <Link href={rescheduleUrl} style={{ color: "#60A5FA", fontSize: "13px", wordBreak: "break-all" }}>
+      <Link
+        href={rescheduleUrl}
+        style={{ color: "#60A5FA", fontSize: "13px", wordBreak: "break-all" }}
+      >
         {rescheduleUrl}
       </Link>
     </EmailLayout>

@@ -24,6 +24,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       maxConversations: 100,
       maxUploads: 5,
       maxStorageMB: 50,
+      maxApiKeys: 0,
       maxAIMessages: 50,
     },
     features: ["basic_ai"],
@@ -41,9 +42,10 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       maxConversations: 500,
       maxUploads: 50,
       maxStorageMB: 100,
+      maxApiKeys: 2,
       maxAIMessages: 500,
     },
-    features: ["basic_ai", "email_notifications", "basic_reports"],
+    features: ["basic_ai", "whatsapp", "email_notifications", "basic_reports"],
   },
   {
     code: "PRO",
@@ -58,15 +60,10 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       maxConversations: 10000,
       maxUploads: 200,
       maxStorageMB: 500,
+      maxApiKeys: 5,
       maxAIMessages: 5000,
     },
-    features: [
-      "advanced_ai",
-      "whatsapp",
-      "email_notifications",
-      "advanced_reports",
-      "api_access",
-    ],
+    features: ["advanced_ai", "whatsapp", "email_notifications", "advanced_reports", "api_access"],
   },
   {
     code: "BUSINESS",
@@ -81,6 +78,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       maxConversations: 99999,
       maxUploads: 1000,
       maxStorageMB: 2000,
+      maxApiKeys: 20,
       maxAIMessages: 50000,
     },
     features: [
@@ -106,6 +104,7 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       maxConversations: 999999,
       maxUploads: 9999,
       maxStorageMB: 99999,
+      maxApiKeys: 999,
       maxAIMessages: 999999,
     },
     features: [
@@ -184,8 +183,11 @@ export function getPlanPrice(planCode: string): number {
 }
 
 export function getPlanPriceMap(): Record<string, number> {
-  return PLAN_DEFINITIONS.reduce((acc, def) => {
-    acc[def.code] = def.price;
-    return acc;
-  }, {} as Record<string, number>);
+  return PLAN_DEFINITIONS.reduce(
+    (acc, def) => {
+      acc[def.code] = def.price;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
 }

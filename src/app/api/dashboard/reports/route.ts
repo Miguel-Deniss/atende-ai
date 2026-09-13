@@ -38,21 +38,33 @@ export async function GET(request: NextRequest) {
         where: { companyId: user.companyId, deletedAt: null, createdAt: { gte: monthStart } },
       }),
       prisma.client.count({
-        where: { companyId: user.companyId, deletedAt: null, createdAt: { gte: lastMonthStart, lte: lastMonthEnd } },
+        where: {
+          companyId: user.companyId,
+          deletedAt: null,
+          createdAt: { gte: lastMonthStart, lte: lastMonthEnd },
+        },
       }),
       prisma.appointment.count({ where: { companyId: user.companyId, deletedAt: null } }),
       prisma.appointment.count({
         where: { companyId: user.companyId, deletedAt: null, createdAt: { gte: monthStart } },
       }),
       prisma.appointment.count({
-        where: { companyId: user.companyId, deletedAt: null, createdAt: { gte: lastMonthStart, lte: lastMonthEnd } },
+        where: {
+          companyId: user.companyId,
+          deletedAt: null,
+          createdAt: { gte: lastMonthStart, lte: lastMonthEnd },
+        },
       }),
       prisma.conversation.count({ where: { companyId: user.companyId, deletedAt: null } }),
       prisma.conversation.count({
         where: { companyId: user.companyId, deletedAt: null, createdAt: { gte: monthStart } },
       }),
       prisma.conversation.count({
-        where: { companyId: user.companyId, deletedAt: null, createdAt: { gte: lastMonthStart, lte: lastMonthEnd } },
+        where: {
+          companyId: user.companyId,
+          deletedAt: null,
+          createdAt: { gte: lastMonthStart, lte: lastMonthEnd },
+        },
       }),
       prisma.message.count({
         where: { conversation: { companyId: user.companyId, deletedAt: null } },
@@ -83,7 +95,8 @@ export async function GET(request: NextRequest) {
     const services = topServices.map((s) => ({
       service: s.service,
       count: s._count._all,
-      percentage: appointments.length > 0 ? Math.round((s._count._all / appointments.length) * 100) : 0,
+      percentage:
+        appointments.length > 0 ? Math.round((s._count._all / appointments.length) * 100) : 0,
     }));
 
     const hourCounts = new Map<string, number>();
@@ -119,9 +132,7 @@ export async function GET(request: NextRequest) {
       },
       services,
       peakHours: hours,
-      conversationStatus: Object.fromEntries(
-        statusCounts.map((s) => [s.status, s._count._all])
-      ),
+      conversationStatus: Object.fromEntries(statusCounts.map((s) => [s.status, s._count._all])),
     });
   } catch {
     return errorResponse("Erro interno do servidor", 500);

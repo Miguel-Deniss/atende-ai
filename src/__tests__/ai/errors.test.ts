@@ -15,9 +15,7 @@ import { logger } from "@/lib/logger/structured";
 
 describe("classifyAIError", () => {
   it("deve classificar quota excedida", () => {
-    const err = classifyAIError(
-      new Error("OpenAI HTTP 429: insufficient_quota")
-    );
+    const err = classifyAIError(new Error("OpenAI HTTP 429: insufficient_quota"));
     expect(err.kind).toBe("QUOTA_EXCEEDED");
     expect(err.code).toBe("ai_quota_exceeded");
     expect(err.retryable).toBe(true);
@@ -46,9 +44,7 @@ describe("classifyAIError", () => {
   });
 
   it("deve classificar configuração ausente", () => {
-    const err = classifyAIError(
-      new Error("AI_PROVIDER=openai mas OPENAI_API_KEY não configurado")
-    );
+    const err = classifyAIError(new Error("AI_PROVIDER=openai mas OPENAI_API_KEY não configurado"));
     expect(err.kind).toBe("CONFIGURATION");
     expect(err.retryable).toBe(false);
   });
@@ -59,9 +55,7 @@ describe("classifyAIError", () => {
   });
 
   it("deve classificar resposta inválida (guardrail)", () => {
-    const err = classifyAIError(
-      new Error("A IA gerou resposta com informacoes incorretas.")
-    );
+    const err = classifyAIError(new Error("A IA gerou resposta com informacoes incorretas."));
     expect(err.kind).toBe("INVALID_RESPONSE");
   });
 

@@ -1,10 +1,6 @@
 import { NextRequest } from "next/server";
 import { rateLimitResponse } from "@/lib/auth/api-response";
-import {
-  checkApiRateLimit,
-  checkWebhookRateLimit,
-  getRateLimitHeaders,
-} from "./index";
+import { checkApiRateLimit, checkWebhookRateLimit, getRateLimitHeaders } from "./index";
 
 type Kind = "api" | "webhook";
 
@@ -14,18 +10,14 @@ export async function guardRateLimit(
   kind: Kind = "api"
 ): Promise<Response | null> {
   const check =
-    kind === "webhook"
-      ? await checkWebhookRateLimit(key)
-      : await checkApiRateLimit(key);
+    kind === "webhook" ? await checkWebhookRateLimit(key) : await checkApiRateLimit(key);
 
   if (check.allowed) {
     return null;
   }
 
   const response = rateLimitResponse();
-  for (const [name, value] of Object.entries(
-    getRateLimitHeaders(check)
-  )) {
+  for (const [name, value] of Object.entries(getRateLimitHeaders(check))) {
     response.headers.set(name, value);
   }
   return response;

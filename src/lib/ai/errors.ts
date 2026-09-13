@@ -64,15 +64,13 @@ const KIND_SPECS: Record<AIErrorKind, KindSpec> = {
   EMPTY_RESPONSE: {
     code: "ai_empty_response",
     retryable: true,
-    userMessage:
-      "Não consegui responder agora. Por favor, tente novamente.",
+    userMessage: "Não consegui responder agora. Por favor, tente novamente.",
     logLevel: "warn",
   },
   INVALID_RESPONSE: {
     code: "ai_invalid_response",
     retryable: true,
-    userMessage:
-      "Não consegui processar sua solicitação no momento. Pode tentar novamente?",
+    userMessage: "Não consegui processar sua solicitação no momento. Pode tentar novamente?",
     logLevel: "warn",
   },
   INTERNAL: {
@@ -90,11 +88,7 @@ export class AIError extends Error {
   readonly retryable: boolean;
   readonly userMessage: string;
 
-  constructor(
-    message: string,
-    kind: AIErrorKind,
-    options: { cause?: unknown } = {}
-  ) {
+  constructor(message: string, kind: AIErrorKind, options: { cause?: unknown } = {}) {
     super(message, options);
     this.name = "AIError";
     this.kind = kind;
@@ -111,25 +105,21 @@ export function userMessageFor(kind: AIErrorKind): string {
 const KIND_MATCHERS: { kind: AIErrorKind; test: RegExp }[] = [
   {
     kind: "QUOTA_EXCEEDED",
-    test:
-      /insufficient_quota|quota exceeded|out of credits|billing.*exceed|plan.*limit|usage limit|credit balance/i,
+    test: /insufficient_quota|quota exceeded|out of credits|billing.*exceed|plan.*limit|usage limit|credit balance/i,
   },
   { kind: "RATE_LIMITED", test: /rate.?limit|429|too many requests/i },
   { kind: "TIMEOUT", test: /timed? ?out|timeout|aborted|abort/ },
   {
     kind: "CONFIGURATION",
-    test:
-      /n[aã]o configurado|not configured|api.?key|OPENAI_API_KEY|missing api/i,
+    test: /n[aã]o configurado|not configured|api.?key|OPENAI_API_KEY|missing api/i,
   },
   {
     kind: "EMPTY_RESPONSE",
-    test:
-      /n[aã]o gerou conte[uú]do|resposta vazia|vazio|retornou resposta vazia|empty response|eval_count|no content/i,
+    test: /n[aã]o gerou conte[uú]do|resposta vazia|vazio|retornou resposta vazia|empty response|eval_count|no content/i,
   },
   {
     kind: "PROVIDER_OFFLINE",
-    test:
-      /fetch failed|econnrefused|econnreset|enotfound|ehostunreach|etimedout|unavailable|offline|circuit breaker open|http 50[0-9]/i,
+    test: /fetch failed|econnrefused|econnreset|enotfound|ehostunreach|etimedout|unavailable|offline|circuit breaker open|http 50[0-9]/i,
   },
   {
     kind: "INVALID_RESPONSE",

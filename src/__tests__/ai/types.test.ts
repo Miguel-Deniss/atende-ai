@@ -107,8 +107,6 @@ describe("parseConversationState", () => {
   });
 
   it("deve retornar default para valor inválido", () => {
-    expect(parseConversationState({ intent: "errado" })).toEqual(
-      defaultConversationState()
-    );
+    expect(parseConversationState({ intent: "errado" })).toEqual(defaultConversationState());
   });
 });

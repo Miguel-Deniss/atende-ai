@@ -208,7 +208,11 @@ describe("createCheckoutSession", () => {
       expect.objectContaining({
         mode: "subscription",
         customer: "cus_1",
-        metadata: expect.objectContaining({ companyId: "c1", planCode: "PRO", couponCode: "PROMO" }),
+        metadata: expect.objectContaining({
+          companyId: "c1",
+          planCode: "PRO",
+          couponCode: "PROMO",
+        }),
       })
     );
   });
@@ -220,7 +224,9 @@ describe("createBillingPortalSession", () => {
     const client = getStripeClient() as unknown as {
       billingPortal: { sessions: { create: ReturnType<typeof vi.fn> } };
     };
-    client.billingPortal.sessions.create.mockResolvedValue({ url: "https://billing.stripe.com/p/xyz" });
+    client.billingPortal.sessions.create.mockResolvedValue({
+      url: "https://billing.stripe.com/p/xyz",
+    });
 
     const url = await createBillingPortalSession({
       customerId: "cus_1",

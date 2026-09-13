@@ -1,26 +1,10 @@
-import { 
-  getCurrentUser, 
-  refreshAccessToken 
-} from "@/lib/auth/session";
+import { getCurrentUser } from "@/lib/auth/session";
 
-import { 
-  successResponse, 
-  errorResponse 
-} from "@/lib/auth/api-response";
-
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 
 export async function GET() {
   try {
-    let user = await getCurrentUser();
-
-    // Access token expirado ou inválido
-    if (!user) {
-      const refreshed = await refreshAccessToken();
-
-      if (refreshed) {
-        user = await getCurrentUser();
-      }
-    }
+    const user = await getCurrentUser();
 
     if (!user) {
       return errorResponse("Não autorizado", 401);
@@ -42,7 +26,6 @@ export async function GET() {
         subscriptionStatus: user.company.subscriptionStatus,
       },
     });
-
   } catch (error) {
     console.error("ME ERROR:", error);
     return errorResponse("Não autorizado", 401);

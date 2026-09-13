@@ -104,9 +104,7 @@ export function ResetPasswordForm() {
               <KeyRound className="w-7 h-7 text-blue-400" />
             </div>
             <h2 className="text-xl font-bold text-white mb-2">Definir nova senha</h2>
-            <p className="text-sm text-gray-500">
-              Escolha uma nova senha para acessar sua conta.
-            </p>
+            <p className="text-sm text-gray-500">Escolha uma nova senha para acessar sua conta.</p>
           </div>
 
           {error && (

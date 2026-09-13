@@ -8,13 +8,13 @@ export interface TwoFactorTemplateProps {
 
 export function TwoFactorTemplate({ code, expiresInMinutes = 10 }: TwoFactorTemplateProps) {
   return (
-    <EmailLayout
-      preview="Seu código de verificação"
-      title="Verificação em duas etapas"
-    >
-      <Text style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 16px 0" }}>
-        Estamos verificando o login na sua conta do <strong style={{ color: "#F8FAFC" }}>AtendeAI</strong>.
-        Use o código abaixo para concluir o acesso:
+    <EmailLayout preview="Seu código de verificação" title="Verificação em duas etapas">
+      <Text
+        style={{ color: "#CBD5E1", fontSize: "15px", lineHeight: "24px", margin: "0 0 16px 0" }}
+      >
+        Estamos verificando o login na sua conta do{" "}
+        <strong style={{ color: "#F8FAFC" }}>AtendeAI</strong>. Use o código abaixo para concluir o
+        acesso:
       </Text>
 
       <Text
@@ -33,14 +33,17 @@ export function TwoFactorTemplate({ code, expiresInMinutes = 10 }: TwoFactorTemp
         {code}
       </Text>
 
-      <Text style={{ color: "#94A3B8", fontSize: "13px", lineHeight: "20px", margin: "0 0 16px 0" }}>
-        Este código é válido por <strong style={{ color: "#F8FAFC" }}>{expiresInMinutes} minutos</strong>.
-        Se você não tentou entrar na sua conta, ignore esta mensagem e considere alterar sua senha.
+      <Text
+        style={{ color: "#94A3B8", fontSize: "13px", lineHeight: "20px", margin: "0 0 16px 0" }}
+      >
+        Este código é válido por{" "}
+        <strong style={{ color: "#F8FAFC" }}>{expiresInMinutes} minutos</strong>. Se você não tentou
+        entrar na sua conta, ignore esta mensagem e considere alterar sua senha.
       </Text>
 
       <Text style={{ color: "#64748B", fontSize: "13px", lineHeight: "20px", margin: "0" }}>
-        Nunca compartilhe este código com ninguém. A equipe do AtendeAI jamais pedirá seu código
-        por e-mail ou telefone.
+        Nunca compartilhe este código com ninguém. A equipe do AtendeAI jamais pedirá seu código por
+        e-mail ou telefone.
       </Text>
     </EmailLayout>
   );

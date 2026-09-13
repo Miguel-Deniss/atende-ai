@@ -85,18 +85,12 @@ describe("objectiveFor", () => {
   });
 
   it("human deve transferir", () => {
-    const obj = objectiveFor(
-      makeState({ intent: "human", step: "idle" }),
-      company
-    );
+    const obj = objectiveFor(makeState({ intent: "human", step: "idle" }), company);
     expect(obj).toContain("transferir");
   });
 
   it("service deve usar somente a lista", () => {
-    const obj = objectiveFor(
-      makeState({ intent: "service", step: "idle" }),
-      company
-    );
+    const obj = objectiveFor(makeState({ intent: "service", step: "idle" }), company);
     expect(obj).toContain("SOMENTE a lista de servicos");
   });
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Settings, Loader2, RefreshCcw, Server, Shield, KeyRound, Webhook, MinusCircle } from "lucide-react";
+import { Loader2, RefreshCcw, Server, Shield, KeyRound, Webhook, MinusCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,16 +47,18 @@ export default function AdminSettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/admin/settings", { credentials: "include" });
     const d = await res.json();
     if (d.success) setData(d.data);
     else toast(d.error || "Erro ao carregar configurações", "error");
     setLoading(false);
-  };
+  }, [toast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const formatBRL = (cents: number) =>
     (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -75,7 +77,12 @@ export default function AdminSettingsPage() {
 
   const integrations = [
     { name: "Stripe", key: "stripe", icon: "💳", detail: data.integrations.stripe.webhook },
-    { name: "WhatsApp Cloud API", key: "whatsapp", icon: "📱", detail: data.integrations.whatsapp.webhook },
+    {
+      name: "WhatsApp Cloud API",
+      key: "whatsapp",
+      icon: "📱",
+      detail: data.integrations.whatsapp.webhook,
+    },
     { name: "Resend (E-mails)", key: "resend", icon: "✉️", detail: undefined },
     { name: "OpenAI (IA)", key: "openai", icon: "🤖", detail: undefined },
   ] as const;
@@ -89,7 +96,11 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="space-y-8">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-start justify-between"
+      >
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Configurações</h1>
           <p className="text-gray-500 text-sm">Status do sistema e integrações</p>
@@ -130,9 +141,13 @@ export default function AdminSettingsPage() {
                 <div key={c.label} className="flex items-center justify-between">
                   <span className="text-sm font-mono text-gray-300">{c.label}</span>
                   {c.ok ? (
-                    <Badge variant="success" className="text-[10px]">Configurada</Badge>
+                    <Badge variant="success" className="text-[10px]">
+                      Configurada
+                    </Badge>
                   ) : (
-                    <Badge variant="destructive" className="text-[10px]">Ausente</Badge>
+                    <Badge variant="destructive" className="text-[10px]">
+                      Ausente
+                    </Badge>
                   )}
                 </div>
               ))}
@@ -161,7 +176,9 @@ export default function AdminSettingsPage() {
                       </div>
                     </div>
                     {status.configured ? (
-                      <Badge variant="success" className="text-[10px] flex-shrink-0">Configurada</Badge>
+                      <Badge variant="success" className="text-[10px] flex-shrink-0">
+                        Configurada
+                      </Badge>
                     ) : (
                       <Badge variant="secondary" className="text-[10px] flex-shrink-0">
                         <MinusCircle className="w-3 h-3 mr-1" /> Não configurada
@@ -177,7 +194,9 @@ export default function AdminSettingsPage() {
                 <div className="flex gap-2 flex-wrap">
                   {Object.entries(data.webhookSummary).map(([provider, statuses]) => (
                     <div key={provider} className="flex items-center gap-1">
-                      <Badge variant="outline" className="text-[10px]">{provider}</Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        {provider}
+                      </Badge>
                       {Object.entries(statuses).map(([status, count]) => (
                         <span key={status} className="text-xs text-gray-500">
                           {status}: {count}
@@ -199,16 +218,27 @@ export default function AdminSettingsPage() {
             </div>
             <div className="space-y-2">
               {data.plans.map((plan) => (
-                <div key={plan.code} className="flex items-center justify-between p-2 rounded-lg bg-secondary/20">
+                <div
+                  key={plan.code}
+                  className="flex items-center justify-between p-2 rounded-lg bg-secondary/20"
+                >
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-white">{plan.name}</span>
-                    <Badge variant={plan.isActive ? "success" : "secondary"} className="text-[10px]">
+                    <Badge
+                      variant={plan.isActive ? "success" : "secondary"}
+                      className="text-[10px]"
+                    >
                       {plan.isActive ? "Ativo" : "Inativo"}
                     </Badge>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-white">{formatBRL(plan.price)}<span className="text-xs text-gray-500">/mês</span></p>
-                    <p className="text-xs text-gray-600">Trial: {plan.trialDays}d · {plan._count.subscriptions} assinantes</p>
+                    <p className="text-sm font-semibold text-white">
+                      {formatBRL(plan.price)}
+                      <span className="text-xs text-gray-500">/mês</span>
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Trial: {plan.trialDays}d · {plan._count.subscriptions} assinantes
+                    </p>
                   </div>
                 </div>
               ))}
@@ -224,7 +254,9 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
   return (
     <div className="flex items-center justify-between gap-4">
       <span className="text-sm text-gray-400">{label}</span>
-      <span className={`text-sm text-white ${mono ? "font-mono text-xs" : "font-medium"}`}>{value}</span>
+      <span className={`text-sm text-white ${mono ? "font-mono text-xs" : "font-medium"}`}>
+        {value}
+      </span>
     </div>
   );
 }

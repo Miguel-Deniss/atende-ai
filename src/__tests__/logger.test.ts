@@ -47,7 +47,7 @@ describe("Logger", () => {
 
   it("should include timestamp in production log output", async () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     const { logger } = await import("@/lib/logger/structured");
@@ -61,12 +61,12 @@ describe("Logger", () => {
     expect(parsed.act).toBe("test");
 
     spy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+    vi.stubEnv("NODE_ENV", originalEnv ?? "test");
   });
 
   it("should include optional context fields in production output", async () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     const { logger } = await import("@/lib/logger/structured");
@@ -87,6 +87,6 @@ describe("Logger", () => {
     expect(parsed.err).toBe("something failed");
 
     spy.mockRestore();
-    process.env.NODE_ENV = originalEnv;
+    vi.stubEnv("NODE_ENV", originalEnv ?? "test");
   });
 });

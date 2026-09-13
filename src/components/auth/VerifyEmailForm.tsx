@@ -97,16 +97,15 @@ export function VerifyEmailForm() {
           </h2>
           <p className="text-sm text-gray-400 mb-8">{message}</p>
           <div className="space-y-3">
-            <Button className="w-full" size="lg" variant="outline" onClick={() => router.push("/login")}>
-              Voltar ao login
-            </Button>
             <Button
               className="w-full"
               size="lg"
-              variant="ghost"
-              onClick={verify}
-              disabled={!token}
+              variant="outline"
+              onClick={() => router.push("/login")}
             >
+              Voltar ao login
+            </Button>
+            <Button className="w-full" size="lg" variant="ghost" onClick={verify} disabled={!token}>
               <RefreshCw className="w-4 h-4" />
               Tentar novamente
             </Button>

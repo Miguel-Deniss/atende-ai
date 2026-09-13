@@ -1,14 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import {
-  verifyMetaSignature,
-  verifyWebhookToken,
-} from "@/lib/whatsapp/verify-signature";
+import { verifyMetaSignature, verifyWebhookToken } from "@/lib/whatsapp/verify-signature";
 import crypto from "crypto";
 
 function sign(body: string, secret: string): string {
-  return (
-    "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex")
-  );
+  return "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
 }
 
 describe("verifyMetaSignature", () => {
@@ -49,7 +44,7 @@ describe("verifyMetaSignature", () => {
 
   it("deve aceitar sem validação quando META_APP_SECRET não está configurado", () => {
     vi.stubEnv("META_APP_SECRET", "");
-    expect(verifyMetaSignature(body, null)).toBe(true);
+    expect(verifyMetaSignature(body, null)).toBe(false);
   });
 });
 

@@ -2,8 +2,10 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requirePermission } from "@/lib/auth/api-guard";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
-import { appointmentSchema, paginationSchema } from "@/lib/validators/auth";
+import { appointmentSchema } from "@/lib/validators/auth";
 import { createLog } from "@/lib/logger";
+import { Prisma } from "@prisma/client";
+import { getPlanLimits } from "@/lib/tenant/plan-limits";
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +17,7 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get("month");
     const year = searchParams.get("year");
 
-    const where: Record<string, unknown> = {
+    const where: Prisma.AppointmentWhereInput = {
       companyId: user.companyId,
       deletedAt: null,
     };
@@ -31,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     const appointments = await prisma.appointment.findMany({
-      where: where as any,
+      where,
       orderBy: [{ date: "asc" }, { time: "asc" }],
     });
 
@@ -53,10 +55,35 @@ export async function POST(request: NextRequest) {
       return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);
     }
 
+    const [appointmentCount, service, client] = await Promise.all([
+      prisma.appointment.count({ where: { companyId: user.companyId, deletedAt: null } }),
+      prisma.service.findFirst({
+        where: { name: parsed.data.service, aiConfig: { companyId: user.companyId } },
+        select: { name: true },
+      }),
+      parsed.data.clientId
+        ? prisma.client.findFirst({
+            where: { id: parsed.data.clientId, companyId: user.companyId, deletedAt: null },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    if (appointmentCount >= getPlanLimits(user.company.planType).maxAppointments) {
+      return errorResponse("Limite de agendamentos do plano atingido", 403);
+    }
+
+    if (!service) return errorResponse("Servico invalido para esta empresa", 400);
+    if (parsed.data.clientId && !client) return errorResponse("Cliente nao encontrado", 404);
+
     const appointment = await prisma.appointment.create({
       data: {
-        ...parsed.data,
+        time: parsed.data.time,
         date: new Date(parsed.data.date + "T12:00:00.000Z"),
+        name: parsed.data.name,
+        service: service.name,
+        clientId: client?.id,
+        status: parsed.data.status,
         companyId: user.companyId,
       },
     });
@@ -71,7 +98,10 @@ export async function POST(request: NextRequest) {
     });
 
     return successResponse(appointment, 201);
-  } catch {
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse("Este horario ja esta ocupado", 409);
+    }
     return errorResponse("Erro interno do servidor", 500);
   }
 }

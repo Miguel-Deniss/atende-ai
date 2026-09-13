@@ -57,7 +57,9 @@ describe("GET /api/schedule/[id]", () => {
     (prisma.appointment.findFirst as any).mockResolvedValue(null);
     const res = await GET(makeRequest(), makeParams("appt-1"));
     expect(res.status).toBe(404);
-    expect((prisma.appointment.findFirst as any).mock.calls[0][0].where.companyId).toBe("company-1");
+    expect((prisma.appointment.findFirst as any).mock.calls[0][0].where.companyId).toBe(
+      "company-1"
+    );
   });
 
   it("retorna o agendamento quando encontrado", async () => {
@@ -100,7 +102,9 @@ describe("PATCH /api/schedule/[id]", () => {
 
 describe("DELETE /api/schedule/[id]", () => {
   it("faz soft-delete e loga DATA_DELETE", async () => {
-    (prisma.appointment.update as any).mockResolvedValue(makeAppointment({ deletedAt: new Date() }));
+    (prisma.appointment.update as any).mockResolvedValue(
+      makeAppointment({ deletedAt: new Date() })
+    );
 
     const res = await DELETE(makeRequest(), makeParams("appt-1"));
     expect(res.status).toBe(200);

@@ -14,12 +14,9 @@ export function isGarbageResponse(content: string): boolean {
   return garbagePatterns.some((p) => p.test(content));
 }
 
-export function containsInventedInfo(
-  response: string,
-  company: CompanyContext
-): string | null {
+export function containsInventedInfo(response: string, company: CompanyContext): string | null {
   const services = company.aiConfig?.services ?? [];
-  const knownServiceNames = services.map(s => s.name.toLowerCase().trim());
+  const knownServiceNames = services.map((s) => s.name.toLowerCase().trim());
   const knownWords = new Set<string>();
 
   for (const s of knownServiceNames) {
@@ -48,11 +45,14 @@ export function containsInventedInfo(
 
   for (const pattern of inventionPatterns) {
     if (pattern.test(response)) {
-      return "Resposta menciona informacao que nao existe no cadastro da empresa: " + pattern.source;
+      return (
+        "Resposta menciona informacao que nao existe no cadastro da empresa: " + pattern.source
+      );
     }
   }
 
-  const namePattern = /\b([A-ZÀ-Ú][a-zà-ú]+)\s+(vai|podera|ira|pode|esta)\s+(atende|realizar|cortar|fazer)/i;
+  const namePattern =
+    /\b([A-ZÀ-Ú][a-zà-ú]+)\s+(vai|podera|ira|pode|esta)\s+(atende|realizar|cortar|fazer)/i;
   const nameMatch = response.match(namePattern);
   if (nameMatch) {
     return "Resposta menciona nome de funcionario que nao existe no cadastro: " + nameMatch[1];

@@ -46,7 +46,9 @@ export function captureError(error: Error, context?: Record<string, unknown>) {
   if (SENTRY_DSN) {
     try {
       Function('return import("@sentry/nextjs")')().then(
-        (Sentry: { captureException: (err: Error, opts?: { extra?: Record<string, unknown> }) => void }) => {
+        (Sentry: {
+          captureException: (err: Error, opts?: { extra?: Record<string, unknown> }) => void;
+        }) => {
           Sentry.captureException(error, { extra: context });
         }
       );
@@ -54,10 +56,7 @@ export function captureError(error: Error, context?: Record<string, unknown>) {
   }
 }
 
-export function captureMessage(
-  message: string,
-  level: "info" | "warning" | "error" = "info"
-) {
+export function captureMessage(message: string, level: "info" | "warning" | "error" = "info") {
   logger.info(message, { action: "captured_message", metadata: { level } });
 
   if (SENTRY_DSN) {

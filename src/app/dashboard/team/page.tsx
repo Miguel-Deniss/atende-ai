@@ -192,12 +192,8 @@ export default function TeamPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-white truncate">{m.name}</p>
-                    {m.id === user?.id && (
-                      <Badge variant="secondary">Você</Badge>
-                    )}
-                    {m.role === "ADMIN" && (
-                      <Shield className="w-3.5 h-3.5 text-amber-400" />
-                    )}
+                    {m.id === user?.id && <Badge variant="secondary">Você</Badge>}
+                    {m.role === "ADMIN" && <Shield className="w-3.5 h-3.5 text-amber-400" />}
                   </div>
                   <p className="text-xs text-gray-500 truncate">{m.email}</p>
                 </div>
@@ -292,7 +288,10 @@ export default function TeamPage() {
           </div>
           <div>
             <Label>Papel</Label>
-            <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v as TeamMember["role"] }))}>
+            <Select
+              value={form.role}
+              onValueChange={(v) => setForm((f) => ({ ...f, role: v as TeamMember["role"] }))}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue>{ROLE_LABELS[form.role]}</SelectValue>
               </SelectTrigger>
@@ -306,7 +305,11 @@ export default function TeamPage() {
             </Select>
           </div>
           <Button className="w-full" onClick={handleCreate} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <Plus className="w-4 h-4 mr-2" />
+            )}
             Criar usuário
           </Button>
         </div>

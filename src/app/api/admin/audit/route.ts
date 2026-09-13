@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { requireRole } from "@/lib/auth/api-guard";
 import { paginationSchema } from "@/lib/validators/auth";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     const companyId = searchParams.get("companyId");
     const action = searchParams.get("action");
 
-    const where: Record<string, unknown> = {};
+    const where: Prisma.AuditLogWhereInput = {};
     if (search) {
       where.description = { contains: search, mode: "insensitive" };
     }
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     const [auditLogs, total] = await Promise.all([
       prisma.auditLog.findMany({
-        where: where as any,
+        where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: "desc" },
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
           company: { select: { name: true } },
         },
       }),
-      prisma.auditLog.count({ where: where as any }),
+      prisma.auditLog.count({ where }),
     ]);
 
     return successResponse({

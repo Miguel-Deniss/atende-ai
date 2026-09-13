@@ -1,18 +1,11 @@
 import { NextRequest } from "next/server";
-import {
-  successResponse,
-  errorResponse,
-  notFoundResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse, notFoundResponse } from "@/lib/auth/api-response";
 import { requireRole } from "@/lib/auth/api-guard";
 import { prisma } from "@/lib/db/prisma";
 import { couponSchema } from "@/lib/validators/auth";
 import { createLog } from "@/lib/logger";
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, response } = await requireRole(["SUPER_ADMIN"]);
     if (response) return response;
@@ -32,7 +25,9 @@ export async function PATCH(
       where: { id },
       data: {
         ...(parsed.data.discountType ? { discountType: parsed.data.discountType } : {}),
-        ...(parsed.data.discountValue !== undefined ? { discountValue: parsed.data.discountValue } : {}),
+        ...(parsed.data.discountValue !== undefined
+          ? { discountValue: parsed.data.discountValue }
+          : {}),
         ...(parsed.data.maxUses !== undefined ? { maxUses: parsed.data.maxUses } : {}),
         ...(parsed.data.validUntil ? { validUntil: new Date(parsed.data.validUntil) } : {}),
         ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),

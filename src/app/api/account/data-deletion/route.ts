@@ -1,67 +1,78 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { requirePermission } from "@/lib/auth/api-guard";
-import {
-  successResponse,
-  errorResponse,
-} from "@/lib/auth/api-response";
+import { errorResponse, notFoundResponse, successResponse } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
 
-const ANONYMIZED_NAME = "Usuário removido (LGPD)";
+const deletionSchema = z.object({ clientId: z.string().min(1).max(255) }).strict();
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, response } = await requirePermission("company:export_data");
+    const { user, response } = await requirePermission("company:manage_clients");
     if (response) return response;
 
-    const companyId = user!.companyId;
+    const parsed = deletionSchema.safeParse(await request.json());
+    if (!parsed.success) return errorResponse("Informe o titular que deve ser anonimizado", 400);
 
-    const [clientResult, appointmentResult, conversationResult] =
-      await Promise.all([
-        prisma.client.updateMany({
-          where: { companyId, deletedAt: null },
-          data: {
-            name: ANONYMIZED_NAME,
-            phone: "(removido)",
-            email: null,
-            whatsappName: null,
-            notes: null,
-          },
-        }),
-        prisma.appointment.updateMany({
-          where: { companyId, deletedAt: null },
-          data: { name: ANONYMIZED_NAME },
-        }),
-        prisma.conversation.updateMany({
-          where: { companyId, deletedAt: null },
-          data: {
-            phone: "(removido)",
-            name: ANONYMIZED_NAME,
-            deletedAt: new Date(),
-          },
-        }),
-      ]);
+    const client = await prisma.client.findFirst({
+      where: { id: parsed.data.clientId, companyId: user.companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) return notFoundResponse("Titular nao encontrado");
+
+    const anonymizedPhone = `deleted-${client.id}`;
+    const [messages, appointments, conversations] = await prisma.$transaction([
+      prisma.message.updateMany({
+        where: { conversation: { clientId: client.id, companyId: user.companyId } },
+        data: { content: "[conteudo removido por solicitacao do titular]" },
+      }),
+      prisma.appointment.updateMany({
+        where: { clientId: client.id, companyId: user.companyId },
+        data: { name: "Titular anonimizado", deletedAt: new Date() },
+      }),
+      prisma.conversation.updateMany({
+        where: { clientId: client.id, companyId: user.companyId },
+        data: {
+          name: "Titular anonimizado",
+          phone: anonymizedPhone,
+          state: {},
+          lastMessage: null,
+          deletedAt: new Date(),
+        },
+      }),
+      prisma.client.update({
+        where: { id: client.id },
+        data: {
+          name: "Titular anonimizado",
+          phone: anonymizedPhone,
+          email: null,
+          whatsappName: null,
+          lastService: null,
+          notes: null,
+          deletedAt: new Date(),
+        },
+      }),
+    ]);
 
     await createLog({
       action: "DATA_DELETE",
-      entity: "company",
-      entityId: companyId,
-      description:
-        "Exclusão de dados pessoais (LGPD) executada — clientes, agendamentos e conversas anonimizados",
-      companyId,
-      userId: user!.id,
+      entity: "client",
+      entityId: client.id,
+      description: "Solicitacao individual de anonimização LGPD concluida",
+      companyId: user.companyId,
+      userId: user.id,
     });
 
     return successResponse({
-      message: "Dados pessoais anonimizados",
+      message: "Dados do titular anonimizados",
       affected: {
-        clients: clientResult.count,
-        appointments: appointmentResult.count,
-        conversations: conversationResult.count,
+        messages: messages.count,
+        appointments: appointments.count,
+        conversations: conversations.count,
       },
     });
-  } catch (error) {
-    console.error(error);
+  } catch {
     return errorResponse("Erro interno do servidor", 500);
   }
 }

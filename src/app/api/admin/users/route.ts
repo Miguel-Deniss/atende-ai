@@ -4,6 +4,7 @@ import { successResponse, errorResponse, notFoundResponse } from "@/lib/auth/api
 import { requireRole } from "@/lib/auth/api-guard";
 import { paginationSchema } from "@/lib/validators/auth";
 import { createLog } from "@/lib/logger";
+import { UserRole, type Prisma } from "@prisma/client";
 
 const ADMIN_MANAGEABLE_ROLES = ["ADMIN", "ATTENDANT", "EMPLOYEE", "FINANCIAL"] as const;
 
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get("role");
     const companyId = searchParams.get("companyId");
 
-    const where: Record<string, unknown> = {};
+    const where: Prisma.UserWhereInput = {};
 
     if (search) {
       where.OR = [
@@ -40,7 +41,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (role) {
-      where.role = role;
+      const normalizedRole = Object.values(UserRole).find((value) => value === role);
+      if (!normalizedRole) return errorResponse("Papel invalido", 400);
+      where.role = normalizedRole;
     }
 
     if (companyId) {
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
-        where: where as any,
+        where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: "desc" },
@@ -83,7 +86,7 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
-      prisma.user.count({ where: where as any }),
+      prisma.user.count({ where }),
     ]);
 
     return successResponse({

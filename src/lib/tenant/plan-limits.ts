@@ -18,63 +18,12 @@ export interface LimitCheck {
   message: string;
 }
 
-const planLimits: Record<string, PlanLimits> = {
-  FREE: {
-    maxUsers: 1,
-    maxClients: 20,
-    maxAppointments: 50,
-    maxConversations: 100,
-    maxUploads: 5,
-    maxStorageMB: 50,
-    maxApiKeys: 0,
-    maxAIMessages: 50,
-    features: ["basic_ai"],
-  },
-  STARTER: {
-    maxUsers: 3,
-    maxClients: 100,
-    maxAppointments: 200,
-    maxConversations: 500,
-    maxUploads: 50,
-    maxStorageMB: 100,
-    maxApiKeys: 2,
-    maxAIMessages: 500,
-    features: ["basic_ai", "email_notifications", "basic_reports"],
-  },
-  PRO: {
-    maxUsers: 10,
-    maxClients: 1000,
-    maxAppointments: 5000,
-    maxConversations: 10000,
-    maxUploads: 200,
-    maxStorageMB: 500,
-    maxApiKeys: 5,
-    maxAIMessages: 5000,
-    features: ["advanced_ai", "whatsapp", "email_notifications", "advanced_reports", "api_access"],
-  },
-  BUSINESS: {
-    maxUsers: 9999,
-    maxClients: 50000,
-    maxAppointments: 99999,
-    maxConversations: 99999,
-    maxUploads: 1000,
-    maxStorageMB: 2000,
-    maxApiKeys: 20,
-    maxAIMessages: 50000,
-    features: ["advanced_ai", "whatsapp", "email_notifications", "advanced_reports", "api_access", "dedicated_support", "custom_integrations"],
-  },
-  ENTERPRISE: {
-    maxUsers: 99999,
-    maxClients: 999999,
-    maxAppointments: 999999,
-    maxConversations: 999999,
-    maxUploads: 9999,
-    maxStorageMB: 99999,
-    maxApiKeys: 999,
-    maxAIMessages: 999999,
-    features: ["advanced_ai", "whatsapp", "email_notifications", "advanced_reports", "api_access", "dedicated_support", "custom_integrations", "custom_models"],
-  },
-};
+const planLimits = Object.fromEntries(
+  PLAN_DEFINITIONS.map((plan) => [
+    plan.code,
+    { ...plan.limits, features: plan.features } as PlanLimits,
+  ])
+) as Record<string, PlanLimits>;
 
 export function getPlanLimits(planType: string): PlanLimits {
   return planLimits[planType] || planLimits.STARTER;
@@ -85,7 +34,7 @@ export function hasFeature(planType: string, feature: string): boolean {
   return limits.features.includes(feature);
 }
 
-export async function checkClientLimit(currentCount: number, planType: string): Promise<LimitCheck> {
+export function checkClientLimit(currentCount: number, planType: string): LimitCheck {
   const limits = getPlanLimits(planType);
   const allowed = currentCount < limits.maxClients;
   return {
@@ -98,7 +47,7 @@ export async function checkClientLimit(currentCount: number, planType: string): 
   };
 }
 
-export async function checkUserLimit(currentCount: number, planType: string): Promise<LimitCheck> {
+export function checkUserLimit(currentCount: number, planType: string): LimitCheck {
   const limits = getPlanLimits(planType);
   const allowed = currentCount < limits.maxUsers;
   return {
@@ -111,7 +60,7 @@ export async function checkUserLimit(currentCount: number, planType: string): Pr
   };
 }
 
-export async function checkStorageLimit(currentUsageMB: number, planType: string): Promise<LimitCheck> {
+export function checkStorageLimit(currentUsageMB: number, planType: string): LimitCheck {
   const limits = getPlanLimits(planType);
   const allowed = currentUsageMB < limits.maxStorageMB;
   return {
@@ -124,7 +73,7 @@ export async function checkStorageLimit(currentUsageMB: number, planType: string
   };
 }
 
-export async function checkApiKeyLimit(currentCount: number, planType: string): Promise<LimitCheck> {
+export function checkApiKeyLimit(currentCount: number, planType: string): LimitCheck {
   const limits = getPlanLimits(planType);
   const allowed = currentCount < limits.maxApiKeys;
   return {
@@ -134,6 +83,32 @@ export async function checkApiKeyLimit(currentCount: number, planType: string): 
     message: allowed
       ? "Limite de API keys dentro do plano"
       : `Limite de API keys atingido (${limits.maxApiKeys}). Faça upgrade do plano.`,
+  };
+}
+
+export function checkConversationLimit(currentCount: number, planType: string): LimitCheck {
+  const limit = getPlanLimits(planType).maxConversations;
+  const allowed = currentCount < limit;
+  return {
+    allowed,
+    current: currentCount,
+    limit,
+    message: allowed
+      ? "Limite de conversas dentro do plano"
+      : `Limite de conversas atingido (${limit}). Faça upgrade do plano.`,
+  };
+}
+
+export function checkAIMessageLimit(currentCount: number, planType: string): LimitCheck {
+  const limit = getPlanLimits(planType).maxAIMessages;
+  const allowed = currentCount < limit;
+  return {
+    allowed,
+    current: currentCount,
+    limit,
+    message: allowed
+      ? "Limite mensal de IA dentro do plano"
+      : `Limite mensal de mensagens de IA atingido (${limit}). Faça upgrade do plano.`,
   };
 }
 
@@ -150,3 +125,4 @@ export function getPlanComparison(): Array<{ plan: string; label: string; limits
     { plan: "ENTERPRISE", label: "Enterprise", limits: planLimits.ENTERPRISE },
   ];
 }
+import { PLAN_DEFINITIONS } from "@/lib/billing/plans";

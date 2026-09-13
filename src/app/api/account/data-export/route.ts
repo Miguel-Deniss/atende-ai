@@ -1,10 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requirePermission } from "@/lib/auth/api-guard";
-import {
-  successResponse,
-  errorResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
 import { dataExportScopeSchema } from "@/lib/validators/auth";
 
@@ -15,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const parsed = dataExportScopeSchema.safeParse(body ?? {});
-    const scope = parsed.success ? parsed.data.scope ?? "all" : "all";
+    const scope = parsed.success ? (parsed.data.scope ?? "all") : "all";
 
     const companyId = user!.companyId;
 
@@ -82,6 +79,17 @@ export async function POST(request: NextRequest) {
         where: { companyId },
         take: 200,
         orderBy: { createdAt: "desc" },
+      });
+      payload.uploads = await prisma.upload.findMany({
+        where: { companyId },
+        select: {
+          id: true,
+          originalName: true,
+          mimeType: true,
+          size: true,
+          createdAt: true,
+          uploadedById: true,
+        },
       });
     }
 

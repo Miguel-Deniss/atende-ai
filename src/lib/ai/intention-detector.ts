@@ -48,17 +48,13 @@ const FAQ_PATTERNS: RegExp[] = [
   /\bestacionamento\b/i,
 ];
 
-const GREETING_PATTERNS: RegExp[] = [
-  /^(ola|oi|eai|e ai|opa|hey|bom dia|boa tarde|boa noite)\b/i,
-];
+const GREETING_PATTERNS: RegExp[] = [/^(ola|oi|eai|e ai|opa|hey|bom dia|boa tarde|boa noite)\b/i];
 
 function matchesAny(patterns: RegExp[], text: string): boolean {
-  return patterns.some(p => p.test(text));
+  return patterns.some((p) => p.test(text));
 }
 
-export function parseConfirmation(
-  message: string
-): "yes" | "no" | "unknown" {
+export function parseConfirmation(message: string): "yes" | "no" | "unknown" {
   const m = normalizeText(message);
 
   if (
@@ -86,10 +82,7 @@ function isPureGreeting(message: string): boolean {
   return words.length <= 4 && matchesAny(GREETING_PATTERNS, norm);
 }
 
-export function detectIntentSync(
-  message: string,
-  state: ConversationState
-): IntentDetection {
+export function detectIntentSync(message: string, state: ConversationState): IntentDetection {
   const norm = normalizeText(message);
   const activeFlow = [
     "waiting_name",

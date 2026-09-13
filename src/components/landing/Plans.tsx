@@ -7,6 +7,7 @@ import Link from "next/link";
 
 const plans = [
   {
+    code: "STARTER",
     name: "Starter",
     price: "R$ 59",
     period: "/mês",
@@ -14,7 +15,7 @@ const plans = [
     features: [
       "IA treinada para seu negócio",
       "Atendimento automático 24h",
-      "Até 300 conversas/mês",
+      "Até 500 conversas/mês",
       "Lembretes automáticos",
       "Integração com WhatsApp",
     ],
@@ -22,6 +23,7 @@ const plans = [
     highlighted: false,
   },
   {
+    code: "PRO",
     name: "Pro",
     price: "R$ 119",
     period: "/mês",
@@ -31,7 +33,7 @@ const plans = [
       "Dashboard completo",
       "Agendamento automático",
       "Relatórios e estatísticas",
-      "Até 2.000 conversas/mês",
+      "Até 10.000 conversas/mês",
       "Histórico de clientes",
     ],
     cta: "Começar",
@@ -39,6 +41,7 @@ const plans = [
     badge: "Mais Popular",
   },
   {
+    code: "BUSINESS",
     name: "Business",
     price: "R$ 249",
     period: "/mês",
@@ -49,7 +52,7 @@ const plans = [
       "Integrações avançadas",
       "Múltiplas unidades",
       "Suporte prioritário 24h",
-      "Conversas ilimitadas",
+      "Até 99.999 conversas/mês",
     ],
     cta: "Começar",
     highlighted: false,
@@ -68,8 +71,7 @@ export function Plans() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            Planos{" "}
-            <span className="gradient-text">simples e transparentes</span>
+            Planos <span className="gradient-text">simples e transparentes</span>
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto text-lg">
             Escolha o plano ideal para o seu negócio
@@ -111,19 +113,18 @@ export function Plans() {
               <ul className="space-y-3 mb-8">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-3 text-sm">
-                    <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                      plan.highlighted ? "text-blue-400" : "text-emerald-400"
-                    }`} />
+                    <Check
+                      className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                        plan.highlighted ? "text-blue-400" : "text-emerald-400"
+                      }`}
+                    />
                     <span className="text-gray-300">{feature}</span>
                   </li>
                 ))}
               </ul>
 
-              <Link href="#comecar">
-                <Button
-                  variant={plan.highlighted ? "default" : "outline"}
-                  className="w-full group"
-                >
+              <Link href={`/register?plan=${plan.code.toLowerCase()}`}>
+                <Button variant={plan.highlighted ? "default" : "outline"} className="w-full group">
                   {plan.cta}
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Button>

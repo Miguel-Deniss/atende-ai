@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Wallet,
@@ -63,18 +63,18 @@ export default function AdminBillingPage() {
   const [data, setData] = useState<BillingData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/admin/billing", { credentials: "include" });
     const d = await res.json();
     if (d.success) setData(d.data);
     else toast(d.error || "Erro ao carregar financeiro", "error");
     setLoading(false);
-  };
+  }, [toast]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const formatBRL = (cents: number) =>
     (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

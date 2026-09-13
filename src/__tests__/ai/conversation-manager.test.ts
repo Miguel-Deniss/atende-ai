@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { processMessage, type ConversationManagerDeps } from "@/lib/ai/conversation-manager";
-import { defaultConversationState, type AIMessage, type CompanyContext, type ConversationState, type LLMMessage } from "@/lib/ai/types";
+import {
+  defaultConversationState,
+  type AIMessage,
+  type CompanyContext,
+  type ConversationState,
+  type LLMMessage,
+} from "@/lib/ai/types";
 
 const company: CompanyContext = {
   name: "Barbearia Teste",
@@ -217,12 +223,7 @@ describe("processMessage — intents simples", () => {
     const h = createHarness("João");
     await h.send("Olá");
     await h.send("Quero marcar uma barba");
-    expect(h.messages.map(m => m.role)).toEqual([
-      "user",
-      "assistant",
-      "user",
-      "assistant",
-    ]);
+    expect(h.messages.map((m) => m.role)).toEqual(["user", "assistant", "user", "assistant"]);
   });
 
   it("deve responder com fallback amigável quando a IA inventa informação", async () => {

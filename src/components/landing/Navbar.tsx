@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, MessageSquareMore, LogOut, User, LayoutDashboard } from "lucide-react";
+import { Menu, X, MessageSquareMore, LogOut, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
@@ -31,15 +31,13 @@ export function Navbar() {
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "glass shadow-lg shadow-black/10"
-          : "bg-transparent"
+        scrolled ? "border-b border-white/10 bg-black/95 backdrop-blur" : "bg-transparent"
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#60A5FA] flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-all duration-300">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-500/40 bg-blue-500/10">
               <MessageSquareMore className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold text-white">
@@ -77,6 +75,7 @@ export function Navbar() {
                     onClick={logout}
                     className="p-1 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                     title="Sair"
+                    aria-label="Sair da conta"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                   </button>
@@ -99,6 +98,9 @@ export function Navbar() {
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="lg:hidden p-2 text-gray-400 hover:text-white transition-colors"
+            aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-navigation"
           >
             {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -113,6 +115,7 @@ export function Navbar() {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
             className="lg:hidden border-t border-border/50 glass"
+            id="mobile-navigation"
           >
             <div className="px-4 py-6 space-y-4">
               {navLinks.map((link) => (
@@ -144,7 +147,10 @@ export function Navbar() {
                       </Button>
                     </Link>
                     <button
-                      onClick={() => { logout(); setMobileOpen(false); }}
+                      onClick={() => {
+                        logout();
+                        setMobileOpen(false);
+                      }}
                       className="text-sm text-gray-500 hover:text-red-400 transition-colors py-2 text-center"
                     >
                       Sair da conta

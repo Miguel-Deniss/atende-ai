@@ -75,10 +75,7 @@ export class CircuitBreaker {
     this.failureCount++;
     this.lastFailureTime = Date.now();
 
-    if (
-      this.failureCount >= this.config.failureThreshold &&
-      this.state !== "OPEN"
-    ) {
+    if (this.failureCount >= this.config.failureThreshold && this.state !== "OPEN") {
       logger.warn(
         `Circuit ${this.config.name} transitioning ${this.state} -> OPEN (${this.failureCount} failures)`
       );

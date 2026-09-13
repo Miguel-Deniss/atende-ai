@@ -1,21 +1,14 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
 import { errorResponse } from "@/lib/auth/api-response";
 import { logSystemEvent } from "@/lib/logger";
-import {
-  verifyMetaSignature,
-  verifyWebhookToken,
-} from "@/lib/whatsapp/verify-signature";
-import { processWhatsAppWebhook } from "@/lib/whatsapp/webhook";
+import { verifyMetaSignature, verifyWebhookToken } from "@/lib/whatsapp/verify-signature";
+import { enqueueWhatsAppWebhook, processWhatsAppWebhookEvent } from "@/lib/whatsapp/queue";
 import { guardRateLimit, clientIp } from "@/lib/rate-limit/with-rate-limit";
 import type { WhatsAppWebhookPayload } from "@/lib/whatsapp/types";
+import { after } from "next/server";
 
 export async function POST(request: NextRequest) {
-  const blocked = await guardRateLimit(
-    request,
-    `webhook-whatsapp:${clientIp(request)}`,
-    "webhook"
-  );
+  const blocked = await guardRateLimit(request, `webhook-whatsapp:${clientIp(request)}`, "webhook");
 
   if (blocked) {
     return blocked;
@@ -26,9 +19,7 @@ export async function POST(request: NextRequest) {
 
   if (!verifyMetaSignature(body, signature)) {
     await logSystemEvent({
-      action: signature
-        ? "WEBHOOK_FAILED"
-        : "SUSPICIOUS_ACTIVITY",
+      action: signature ? "WEBHOOK_FAILED" : "SUSPICIOUS_ACTIVITY",
       entity: "webhook",
       description: signature
         ? "Assinatura do webhook WhatsApp inválida"
@@ -50,31 +41,12 @@ export async function POST(request: NextRequest) {
     description: "Webhook WhatsApp recebido",
   });
 
-  const webhookEvent = await prisma.webhookEvent.create({
-    data: {
-      provider: "whatsapp",
-      event: payload.object || "message",
-      payload: JSON.parse(JSON.stringify(payload)),
-      signature,
-      status: "received",
-    },
+  const webhookEvent = await enqueueWhatsAppWebhook(payload, signature!);
+  after(async () => {
+    await processWhatsAppWebhookEvent(webhookEvent.id);
   });
 
-  const result = await processWhatsAppWebhook(payload);
-
-  await prisma.webhookEvent.update({
-    where: { id: webhookEvent.id },
-    data: {
-      status: result.failed > 0 ? "failed" : "processed",
-      processedAt: new Date(),
-      ...(result.failed > 0 ? { error: result.errors.join("; ") } : {}),
-      ...(result.companyIds.length > 0
-        ? { companyId: result.companyIds[result.companyIds.length - 1] }
-        : {}),
-    },
-  });
-
-  return new Response(JSON.stringify({ received: true }), { status: 200 });
+  return Response.json({ received: true });
 }
 
 export async function GET(request: NextRequest) {

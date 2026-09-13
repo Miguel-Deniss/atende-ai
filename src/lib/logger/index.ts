@@ -100,8 +100,17 @@ export async function createLog(params: {
 
 export function sanitizeLogData<T extends Record<string, unknown>>(data: T): T {
   const sensitiveKeys = [
-    "password", "passwordHash", "token", "secret", "cardNumber",
-    "cvc", "cvv", "creditCard", "apiKey", "privateKey", "twoFactorSecret",
+    "password",
+    "passwordHash",
+    "token",
+    "secret",
+    "cardNumber",
+    "cvc",
+    "cvv",
+    "creditCard",
+    "apiKey",
+    "privateKey",
+    "twoFactorSecret",
   ];
 
   const sanitized = { ...data };

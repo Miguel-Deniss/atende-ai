@@ -1,8 +1,5 @@
 import { logger } from "@/lib/logger/structured";
-import {
-  getRateLimitStore,
-  memoryStore,
-} from "./store";
+import { getRateLimitStore, memoryStore } from "./store";
 
 export interface RateLimitCheck {
   allowed: boolean;
@@ -36,10 +33,7 @@ const configs: Record<Kind, RateLimitConfig> = {
   },
 };
 
-async function checkLimit(
-  kind: Kind,
-  key: string
-): Promise<RateLimitCheck> {
+async function checkLimit(kind: Kind, key: string): Promise<RateLimitCheck> {
   const config = configs[kind];
 
   try {
@@ -50,14 +44,11 @@ async function checkLimit(
       resetAt: bucket.resetAt,
     };
   } catch (error) {
-    logger.warn(
-      "Rate limit distribuído indisponível, usando armazenamento em memória",
-      {
-        action: "rate_limit_fallback_memory",
-        error: error instanceof Error ? error.message : String(error),
-        metadata: { kind, key },
-      }
-    );
+    logger.warn("Rate limit distribuído indisponível, usando armazenamento em memória", {
+      action: "rate_limit_fallback_memory",
+      error: error instanceof Error ? error.message : String(error),
+      metadata: { kind, key },
+    });
     const bucket = await memoryStore.increment(key, config.windowMs);
     return {
       allowed: bucket.count <= config.maxRequests,
@@ -97,13 +88,12 @@ export async function resetLoginAttempts(key: string): Promise<void> {
   }
 }
 
-export function getRateLimitHeaders(
-  config: { remaining: number; resetAt: number }
-): Record<string, string> {
+export function getRateLimitHeaders(config: {
+  remaining: number;
+  resetAt: number;
+}): Record<string, string> {
   return {
     "X-RateLimit-Remaining": String(config.remaining),
-    "X-RateLimit-Reset": String(
-      Math.ceil((config.resetAt - Date.now()) / 1000)
-    ),
+    "X-RateLimit-Reset": String(Math.ceil((config.resetAt - Date.now()) / 1000)),
   };
 }

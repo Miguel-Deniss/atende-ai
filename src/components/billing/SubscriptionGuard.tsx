@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
-import { AlertCircle, CreditCard, Loader2 } from "lucide-react";
+import { AlertCircle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 

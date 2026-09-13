@@ -9,7 +9,11 @@ interface AuthHeaderProps {
 export function AuthHeader({ title, description }: AuthHeaderProps) {
   return (
     <div className={`text-center ${title ? "mb-8" : "mb-6"}`}>
-      <Link href="/" className="inline-flex items-center gap-2.5 mb-6" aria-label="AtendeAI - página inicial">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2.5 mb-6"
+        aria-label="AtendeAI - página inicial"
+      >
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-400 flex items-center justify-center shadow-lg shadow-blue-500/25">
           <MessageSquareMore className="w-5 h-5 text-white" />
         </div>

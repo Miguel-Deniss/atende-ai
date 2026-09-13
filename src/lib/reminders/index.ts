@@ -126,7 +126,11 @@ export async function runAppointmentReminders(): Promise<ReminderRunResult> {
 
       const channel = hasWhatsApp && hasEmail ? "both" : hasWhatsApp ? "whatsapp" : "email";
       result.sent++;
-      result.details.push({ appointmentId: appointment.id, customerName: appointment.name, channel });
+      result.details.push({
+        appointmentId: appointment.id,
+        customerName: appointment.name,
+        channel,
+      });
 
       await createLog({
         action: "EMAIL_SENT",

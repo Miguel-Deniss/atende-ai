@@ -1,9 +1,4 @@
-export type PermissionRole =
-  | "SUPER_ADMIN"
-  | "ADMIN"
-  | "ATTENDANT"
-  | "EMPLOYEE"
-  | "FINANCIAL";
+export type PermissionRole = "SUPER_ADMIN" | "ADMIN" | "ATTENDANT" | "EMPLOYEE" | "FINANCIAL";
 
 export type Permission =
   | "company:view_conversations"
@@ -74,17 +69,12 @@ const ROLE_PERMISSIONS: Record<PermissionRole, Permission[]> = {
   FINANCIAL: ["company:view_metrics", "company:manage_billing"],
 };
 
-export function authorize(
-  user: { role: string },
-  allowedRoles: PermissionRole[]
-): boolean {
+export function authorize(user: { role: string }, allowedRoles: PermissionRole[]): boolean {
   return allowedRoles.includes(user.role as PermissionRole);
 }
 
 export function can(user: { role: string }, permission: Permission): boolean {
-  return (
-    ROLE_PERMISSIONS[user.role as PermissionRole]?.includes(permission) ?? false
-  );
+  return ROLE_PERMISSIONS[user.role as PermissionRole]?.includes(permission) ?? false;
 }
 
 export function isSuperAdmin(role: string): boolean {

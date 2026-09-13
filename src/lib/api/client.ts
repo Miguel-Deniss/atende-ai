@@ -24,11 +24,7 @@ export class ApiClient {
     };
   }
 
-  private async request<T>(
-    method: string,
-    path: string,
-    body?: unknown
-  ): Promise<ApiResponse<T>> {
+  private async request<T>(method: string, path: string, body?: unknown): Promise<ApiResponse<T>> {
     const url = `${this.config.baseUrl}${path}`;
 
     const execute = async (): Promise<Response> => {

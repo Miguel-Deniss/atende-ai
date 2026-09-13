@@ -37,7 +37,9 @@ export function PasswordStrength({ password, className }: PasswordStrengthProps)
             key={level}
             className={cn(
               "h-1 flex-1 rounded-full transition-colors duration-300",
-              level <= Math.max(1, Math.ceil((met / REQUIREMENTS.length) * 5)) ? barColor : "bg-gray-700"
+              level <= Math.max(1, Math.ceil((met / REQUIREMENTS.length) * 5))
+                ? barColor
+                : "bg-gray-700"
             )}
           />
         ))}
@@ -54,7 +56,11 @@ export function PasswordStrength({ password, className }: PasswordStrengthProps)
                 ok ? "text-emerald-400" : "text-gray-500"
               )}
             >
-              {ok ? <Check className="w-3.5 h-3.5 flex-shrink-0" /> : <X className="w-3.5 h-3.5 flex-shrink-0" />}
+              {ok ? (
+                <Check className="w-3.5 h-3.5 flex-shrink-0" />
+              ) : (
+                <X className="w-3.5 h-3.5 flex-shrink-0" />
+              )}
               {req.label}
             </li>
           );

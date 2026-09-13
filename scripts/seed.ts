@@ -1,10 +1,19 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { ensurePlans } from "../src/lib/billing/plans";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminPassword = await bcrypt.hash("Admin123!", 12);
+  await ensurePlans();
+
+  const adminPasswordRaw = process.env.SEED_ADMIN_PASSWORD;
+  if (!adminPasswordRaw) {
+    console.log("Planos sincronizados. Admin nao criado: SEED_ADMIN_PASSWORD ausente.");
+    return;
+  }
+
+  const adminPassword = await bcrypt.hash(adminPasswordRaw, 12);
 
   const adminCompany = await prisma.company.upsert({
     where: { slug: "atendeai-admin" },
@@ -32,8 +41,7 @@ async function main() {
     },
   });
 
-  console.log("Database seeded successfully");
-  console.log("Admin credentials: admin@atendeai.com / Admin123!");
+  console.log("Planos sincronizados e usuario administrativo criado.");
 }
 
 main()

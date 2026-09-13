@@ -18,12 +18,18 @@ interface StripeEventObject {
 export type StripeEvent = {
   id: string;
   type: string;
+  created?: number;
   data: { object: StripeEventObject };
 };
 
 const appUrl = () => process.env.APP_URL ?? "http://localhost:3000";
 
-async function markProcessed(eventId: string, type: string, status: "processed" | "failed", error?: string) {
+async function markProcessed(
+  eventId: string,
+  type: string,
+  status: "processed" | "failed",
+  error?: string
+) {
   await prisma.webhookEvent.updateMany({
     where: { signature: eventId, provider: "stripe" },
     data: { status, error, processedAt: new Date() },
@@ -76,20 +82,20 @@ export async function processStripeEvent(event: StripeEvent): Promise<"processed
   try {
     switch (event.type) {
       case "checkout.session.completed":
-        await handleCheckoutCompleted(event.data.object);
+        await handleCheckoutCompleted(event.data.object, event.created);
         break;
       case "customer.subscription.created":
       case "customer.subscription.updated":
-        await handleSubscriptionUpdated(event.data.object);
+        await handleSubscriptionUpdated(event.data.object, event.created);
         break;
       case "customer.subscription.deleted":
-        await handleSubscriptionDeleted(event.data.object);
+        await handleSubscriptionDeleted(event.data.object, event.created);
         break;
       case "invoice.paid":
-        await handleInvoicePaid(event.data.object);
+        await handleInvoicePaid(event.data.object, event.created);
         break;
       case "invoice.payment_failed":
-        await handleInvoicePaymentFailed(event.data.object);
+        await handleInvoicePaymentFailed(event.data.object, event.created);
         break;
       default:
         await markProcessed(event.id, event.type, "processed");
@@ -99,7 +105,12 @@ export async function processStripeEvent(event: StripeEvent): Promise<"processed
     await markProcessed(event.id, event.type, "processed");
     return "processed";
   } catch (error) {
-    await markProcessed(event.id, event.type, "failed", error instanceof Error ? error.message : String(error));
+    await markProcessed(
+      event.id,
+      event.type,
+      "failed",
+      error instanceof Error ? error.message : String(error)
+    );
     await logSystemEvent({
       action: "WEBHOOK_FAILED",
       entity: "webhook",
@@ -110,7 +121,27 @@ export async function processStripeEvent(event: StripeEvent): Promise<"processed
   }
 }
 
-async function handleCheckoutCompleted(session: StripeEventObject) {
+async function claimSubscriptionOrder(companyId: string, created?: number): Promise<boolean> {
+  if (!created) return true;
+  const eventAt = new Date(created * 1000);
+  const subscription = await prisma.subscription.findUnique({
+    where: { companyId },
+    select: { lastStripeEventAt: true },
+  });
+  if (!subscription) return true;
+  if (subscription.lastStripeEventAt && subscription.lastStripeEventAt > eventAt) return false;
+
+  const claimed = await prisma.subscription.updateMany({
+    where: {
+      companyId,
+      OR: [{ lastStripeEventAt: null }, { lastStripeEventAt: { lte: eventAt } }],
+    },
+    data: { lastStripeEventAt: eventAt },
+  });
+  return claimed.count === 1;
+}
+
+async function handleCheckoutCompleted(session: StripeEventObject, created?: number) {
   const metadata = (session.metadata as Record<string, string> | undefined) ?? {};
   const customerId = session.customer as string | undefined;
   const subscriptionId = session.subscription as string | undefined;
@@ -129,6 +160,7 @@ async function handleCheckoutCompleted(session: StripeEventObject) {
   }
 
   if (!company) return;
+  if (!(await claimSubscriptionOrder(company.id, created))) return;
 
   const resolvedPlan = planCode ?? company.planType;
   const plan = await getPlanByCode(resolvedPlan as string);
@@ -145,6 +177,12 @@ async function handleCheckoutCompleted(session: StripeEventObject) {
     logAction: "SUBSCRIPTION_CREATED",
     description: `Checkout concluído: ${plan.name}`,
   });
+  if (created) {
+    await prisma.subscription.updateMany({
+      where: { companyId: company.id },
+      data: { lastStripeEventAt: new Date(created * 1000) },
+    });
+  }
 
   if (metadata.couponCode) {
     const coupon = await prisma.coupon.findUnique({
@@ -156,12 +194,11 @@ async function handleCheckoutCompleted(session: StripeEventObject) {
   }
 }
 
-async function handleSubscriptionUpdated(subscription: StripeEventObject) {
+async function handleSubscriptionUpdated(subscription: StripeEventObject, created?: number) {
   const stripeSubscriptionId = subscription.id as string | undefined;
   const rawStatus = subscription.status as string | undefined;
-  const priceId =
-    (subscription.items as { data?: { price?: { id?: string } }[] } | undefined)
-      ?.data?.[0]?.price?.id;
+  const priceId = (subscription.items as { data?: { price?: { id?: string } }[] } | undefined)
+    ?.data?.[0]?.price?.id;
 
   if (!stripeSubscriptionId) return;
 
@@ -169,6 +206,7 @@ async function handleSubscriptionUpdated(subscription: StripeEventObject) {
     where: { stripeSubscriptionId },
   });
   if (!company) return;
+  if (!(await claimSubscriptionOrder(company.id, created))) return;
 
   const dbStatus = mapStripeStatus(rawStatus);
   const planCode = priceId ? mapPriceIdToPlan(priceId) : null;
@@ -182,9 +220,7 @@ async function handleSubscriptionUpdated(subscription: StripeEventObject) {
   const updates: Parameters<typeof updateSubscriptionStatus>[0] = {
     companyId: company.id,
     status: dbStatus,
-    ...(selectedPlan
-      ? { planId: selectedPlan.id, planCode: selectedPlan.code }
-      : {}),
+    ...(selectedPlan ? { planId: selectedPlan.id, planCode: selectedPlan.code } : {}),
     logAction:
       dbStatus === "PAST_DUE"
         ? "PAYMENT_FAILURE"
@@ -198,7 +234,9 @@ async function handleSubscriptionUpdated(subscription: StripeEventObject) {
     updates.nextBillingDate = new Date(currentPeriodEnd * 1000);
   }
   if (currentPeriodStart) {
-    updates.expiresAt = new Date(currentPeriodEnd ? currentPeriodEnd * 1000 : currentPeriodStart * 1000);
+    updates.expiresAt = new Date(
+      currentPeriodEnd ? currentPeriodEnd * 1000 : currentPeriodStart * 1000
+    );
   }
   if (cancelAtPeriodEnd && dbStatus === "ACTIVE") {
     updates.canceledAt = new Date(currentPeriodEnd ? currentPeriodEnd * 1000 : Date.now());
@@ -214,7 +252,7 @@ async function handleSubscriptionUpdated(subscription: StripeEventObject) {
   }
 }
 
-async function handleSubscriptionDeleted(subscription: StripeEventObject) {
+async function handleSubscriptionDeleted(subscription: StripeEventObject, created?: number) {
   const stripeSubscriptionId = subscription.id as string | undefined;
   if (!stripeSubscriptionId) return;
 
@@ -222,6 +260,7 @@ async function handleSubscriptionDeleted(subscription: StripeEventObject) {
     where: { stripeSubscriptionId },
   });
   if (!company) return;
+  if (!(await claimSubscriptionOrder(company.id, created))) return;
 
   await updateSubscriptionStatus({
     companyId: company.id,
@@ -232,7 +271,7 @@ async function handleSubscriptionDeleted(subscription: StripeEventObject) {
   });
 }
 
-async function handleInvoicePaid(invoice: StripeEventObject) {
+async function handleInvoicePaid(invoice: StripeEventObject, created?: number) {
   const stripeSubscriptionId = invoice.subscription as string | undefined;
   if (!stripeSubscriptionId) return;
 
@@ -240,6 +279,7 @@ async function handleInvoicePaid(invoice: StripeEventObject) {
     where: { stripeSubscriptionId },
   });
   if (!company) return;
+  if (!(await claimSubscriptionOrder(company.id, created))) return;
 
   const amount = Math.round((invoice.amount_paid as number) ?? 0);
   const currency = ((invoice.currency as string) ?? "brl").toUpperCase();
@@ -301,7 +341,7 @@ async function handleInvoicePaid(invoice: StripeEventObject) {
   }
 }
 
-async function handleInvoicePaymentFailed(invoice: StripeEventObject) {
+async function handleInvoicePaymentFailed(invoice: StripeEventObject, created?: number) {
   const stripeSubscriptionId = invoice.subscription as string | undefined;
   if (!stripeSubscriptionId) return;
 
@@ -309,6 +349,7 @@ async function handleInvoicePaymentFailed(invoice: StripeEventObject) {
     where: { stripeSubscriptionId },
   });
   if (!company) return;
+  if (!(await claimSubscriptionOrder(company.id, created))) return;
 
   const amount = Math.round((invoice.amount_due as number) ?? 0);
   const currency = ((invoice.currency as string) ?? "brl").toUpperCase();

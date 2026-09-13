@@ -18,9 +18,7 @@ export interface GenerateAIInput {
   intentFallback?: IntentFallback;
 }
 
-export async function generateAIResponse(
-  input: GenerateAIInput
-): Promise<ProcessMessageResult> {
+export async function generateAIResponse(input: GenerateAIInput): Promise<ProcessMessageResult> {
   return processMessage({
     conversationId: input.conversationId,
     message: input.message,

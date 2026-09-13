@@ -37,13 +37,10 @@ export async function GET() {
       }),
     ]);
 
-    const planDistribution = revenueData.reduce(
-      (acc: Record<string, number>, curr) => {
-        acc[curr.planType] = curr._count;
-        return acc;
-      },
-      {}
-    );
+    const planDistribution = revenueData.reduce((acc: Record<string, number>, curr) => {
+      acc[curr.planType] = curr._count;
+      return acc;
+    }, {});
 
     const planPrices = getPlanPriceMap();
 

@@ -1,29 +1,23 @@
 import { prisma } from "@/lib/db/prisma";
 import type { Client } from "@prisma/client";
+import { normalizeBrazilianPhone } from "@/lib/clients/phone";
 
 export async function findOrCreateWhatsAppClient(
   companyId: string,
   phone: string,
   whatsappName?: string
 ): Promise<Client> {
-  const existing = await prisma.client.findFirst({
-    where: { companyId, phone },
-  });
+  const normalizedPhone = normalizeBrazilianPhone(phone);
 
-  if (existing) {
-    if (whatsappName && existing.whatsappName !== whatsappName) {
-      return prisma.client.update({
-        where: { id: existing.id },
-        data: { whatsappName },
-      });
-    }
-    return existing;
-  }
-
-  return prisma.client.create({
-    data: {
+  return prisma.client.upsert({
+    where: { companyId_phone: { companyId, phone: normalizedPhone } },
+    update: {
+      ...(whatsappName ? { whatsappName } : {}),
+      deletedAt: null,
+    },
+    create: {
       companyId,
-      phone,
+      phone: normalizedPhone,
       name: whatsappName ?? "Cliente WhatsApp",
       whatsappName: whatsappName ?? null,
     },

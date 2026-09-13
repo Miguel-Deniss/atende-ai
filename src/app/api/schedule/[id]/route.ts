@@ -65,7 +65,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const { user, response } = await requirePermission("company:manage_schedule");
     if (response) return response;

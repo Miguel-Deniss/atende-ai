@@ -6,22 +6,14 @@ export interface RateLimitBucket {
 }
 
 export interface RateLimitStore {
-  increment(
-    key: string,
-    windowMs: number,
-    now?: number
-  ): Promise<RateLimitBucket>;
+  increment(key: string, windowMs: number, now?: number): Promise<RateLimitBucket>;
   reset(key: string, windowMs: number, now?: number): Promise<void>;
 }
 
 class MemoryStore implements RateLimitStore {
   private buckets = new Map<string, RateLimitBucket>();
 
-  async increment(
-    key: string,
-    windowMs: number,
-    now = Date.now()
-  ): Promise<RateLimitBucket> {
+  async increment(key: string, windowMs: number, now = Date.now()): Promise<RateLimitBucket> {
     let bucket = this.buckets.get(key);
     if (!bucket || bucket.resetAt < now) {
       bucket = { count: 0, resetAt: now + windowMs };
@@ -39,11 +31,7 @@ class MemoryStore implements RateLimitStore {
 class DatabaseStore implements RateLimitStore {
   private lastSweep = 0;
 
-  async increment(
-    key: string,
-    windowMs: number,
-    now = Date.now()
-  ): Promise<RateLimitBucket> {
+  async increment(key: string, windowMs: number, now = Date.now()): Promise<RateLimitBucket> {
     const bucketIndex = Math.floor(now / windowMs);
     const rowKey = `${key}:${bucketIndex}`;
     const resetAt = new Date((bucketIndex + 1) * windowMs);
@@ -69,9 +57,7 @@ class DatabaseStore implements RateLimitStore {
   private sweep(now: number): void {
     if (now - this.lastSweep < 60_000) return;
     this.lastSweep = now;
-    prisma.rateLimit
-      .deleteMany({ where: { resetAt: { lt: new Date(now) } } })
-      .catch(() => {});
+    prisma.rateLimit.deleteMany({ where: { resetAt: { lt: new Date(now) } } }).catch(() => {});
   }
 }
 
@@ -80,7 +66,5 @@ export const memoryStore = new MemoryStore();
 const databaseStore = new DatabaseStore();
 
 export function getRateLimitStore(): RateLimitStore {
-  return process.env.RATE_LIMIT_STORE === "database"
-    ? databaseStore
-    : memoryStore;
+  return process.env.RATE_LIMIT_STORE === "database" ? databaseStore : memoryStore;
 }

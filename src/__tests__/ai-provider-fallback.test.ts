@@ -52,7 +52,9 @@ afterEach(() => {
 describe("chat provider com fallback OpenAI", () => {
   it("usa Ollama quando está online", async () => {
     process.env.AI_PROVIDER = "ollama";
-    const fetchMock = mockFetchOnce(jsonResponse({ message: { content: "Resposta Ollama" }, eval_count: 20 }));
+    const fetchMock = mockFetchOnce(
+      jsonResponse({ message: { content: "Resposta Ollama" }, eval_count: 20 })
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await chat([{ role: "user", content: "oi" }]);
@@ -70,7 +72,12 @@ describe("chat provider com fallback OpenAI", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       callCount++;
       if (callCount === 1) {
-        return { ok: false, status: 503, text: async () => "unavailable", json: async () => ({}) } as unknown as Response;
+        return {
+          ok: false,
+          status: 503,
+          text: async () => "unavailable",
+          json: async () => ({}),
+        } as unknown as Response;
       }
       expect(String(input)).toContain("api.openai.com");
       return jsonResponse({ choices: [{ message: { content: "Resposta OpenAI" } }] });
@@ -86,9 +93,9 @@ describe("chat provider com fallback OpenAI", () => {
     process.env.AI_PROVIDER = "openai";
     process.env.OPENAI_API_KEY = "sk-test";
 
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ choices: [{ message: { content: "Direto OpenAI" } }] })
-    );
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse({ choices: [{ message: { content: "Direto OpenAI" } }] }));
 
     const result = await chat([{ role: "user", content: "oi" }]);
 
@@ -107,9 +114,7 @@ describe("chat provider com fallback OpenAI", () => {
     process.env.AI_PROVIDER = "ollama";
     process.env.OPENAI_API_KEY = "";
 
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({}, false)
-    );
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({}, false));
 
     await expect(chat([{ role: "user", content: "oi" }])).rejects.toThrow("Ollama HTTP 500");
     expect(fetchMock).toHaveBeenCalledTimes(1);

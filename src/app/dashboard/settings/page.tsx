@@ -15,11 +15,11 @@ interface CompanyData {
   phone: string;
   address: string;
   hours: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   services: { name: string; price: string }[];
   welcomeMessage: string;
   absenceMessage: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   faq: { question: string; answer: string }[];
   autoTransfer: boolean;
   autoReminders: boolean;
@@ -61,13 +61,13 @@ export default function SettingsPage() {
     async function loadSettings() {
       try {
         const res = await fetch("/api/settings");
-  
+
         if (!res.ok) {
           throw new Error("Erro ao carregar");
         }
-  
+
         const json = await res.json();
-  
+
         setData(json.data);
       } catch (err) {
         console.error(err);
@@ -75,7 +75,7 @@ export default function SettingsPage() {
         setLoaded(true);
       }
     }
-  
+
     loadSettings();
   }, []);
 
@@ -85,7 +85,7 @@ export default function SettingsPage() {
 
   const save = async () => {
     setSaving(true);
-  
+
     try {
       const res = await fetch("/api/settings", {
         method: "PUT",
@@ -94,11 +94,11 @@ export default function SettingsPage() {
         },
         body: JSON.stringify(data),
       });
-  
+
       if (!res.ok) {
         throw new Error("Erro ao salvar");
       }
-  
+
       toast("Configurações salvas com sucesso!");
     } catch (err) {
       console.error(err);
@@ -118,19 +118,37 @@ export default function SettingsPage() {
         transition={{ duration: 0.5 }}
       >
         <h1 className="text-2xl font-bold text-white mb-1">Configurações da IA</h1>
-        <p className="text-gray-500 text-sm">Essas informações serão utilizadas pela IA para responder seus clientes.</p>
+        <p className="text-gray-500 text-sm">
+          Essas informações serão utilizadas pela IA para responder seus clientes.
+        </p>
       </motion.div>
 
-      <SectionCard
-        title="Informações da Empresa"
-        desc="Dados básicos do seu negócio"
-        delay={0.1}
-      >
+      <SectionCard title="Informações da Empresa" desc="Dados básicos do seu negócio" delay={0.1}>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Nome da empresa" id="companyName" value={data.companyName} onChange={(v) => update("companyName", v)} />
-          <Field label="Telefone" id="phone" value={data.phone} onChange={(v) => update("phone", v)} />
-          <Field label="Endereço" id="address" value={data.address} onChange={(v) => update("address", v)} />
-          <Field label="Horário de funcionamento" id="hours" value={data.hours} onChange={(v) => update("hours", v)} />
+          <Field
+            label="Nome da empresa"
+            id="companyName"
+            value={data.companyName}
+            onChange={(v) => update("companyName", v)}
+          />
+          <Field
+            label="Telefone"
+            id="phone"
+            value={data.phone}
+            onChange={(v) => update("phone", v)}
+          />
+          <Field
+            label="Endereço"
+            id="address"
+            value={data.address}
+            onChange={(v) => update("address", v)}
+          />
+          <Field
+            label="Horário de funcionamento"
+            id="hours"
+            value={data.hours}
+            onChange={(v) => update("hours", v)}
+          />
         </div>
       </SectionCard>
 
@@ -164,7 +182,12 @@ export default function SettingsPage() {
               />
             </div>
             <button
-              onClick={() => update("services", data.services.filter((_, j) => j !== i))}
+              onClick={() =>
+                update(
+                  "services",
+                  data.services.filter((_, j) => j !== i)
+                )
+              }
               className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors mb-0.5"
             >
               <Trash2 className="w-4 h-4" />
@@ -232,7 +255,12 @@ export default function SettingsPage() {
               />
             </div>
             <button
-              onClick={() => update("faq", data.faq.filter((_, j) => j !== i))}
+              onClick={() =>
+                update(
+                  "faq",
+                  data.faq.filter((_, j) => j !== i)
+                )
+              }
               className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors mt-6"
             >
               <Trash2 className="w-4 h-4" />
@@ -297,7 +325,17 @@ export default function SettingsPage() {
   );
 }
 
-function SectionCard({ title, desc, delay, children }: { title: string; desc: string; delay: number; children: React.ReactNode }) {
+function SectionCard({
+  title,
+  desc,
+  delay,
+  children,
+}: {
+  title: string;
+  desc: string;
+  delay: number;
+  children: React.ReactNode;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -315,7 +353,17 @@ function SectionCard({ title, desc, delay, children }: { title: string; desc: st
   );
 }
 
-function Field({ label, id, value, onChange }: { label: string; id: string; value: string; onChange: (v: string) => void }) {
+function Field({
+  label,
+  id,
+  value,
+  onChange,
+}: {
+  label: string;
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
@@ -324,7 +372,17 @@ function Field({ label, id, value, onChange }: { label: string; id: string; valu
   );
 }
 
-function TextareaField({ label, id, value, onChange }: { label: string; id: string; value: string; onChange: (v: string) => void }) {
+function TextareaField({
+  label,
+  id,
+  value,
+  onChange,
+}: {
+  label: string;
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
@@ -338,7 +396,17 @@ function TextareaField({ label, id, value, onChange }: { label: string; id: stri
   );
 }
 
-function ToggleRow({ label, desc, checked, onToggle }: { label: string; desc: string; checked: boolean; onToggle: (v: boolean) => void }) {
+function ToggleRow({
+  label,
+  desc,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  desc: string;
+  checked: boolean;
+  onToggle: (v: boolean) => void;
+}) {
   return (
     <div className="flex items-center justify-between">
       <div>

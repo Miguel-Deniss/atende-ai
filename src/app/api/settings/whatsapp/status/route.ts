@@ -1,9 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { requireAuth } from "@/lib/auth/api-guard";
-import {
-  successResponse,
-  errorResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 
 export async function GET() {
   try {

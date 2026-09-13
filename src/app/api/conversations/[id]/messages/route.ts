@@ -9,16 +9,9 @@ import { publish } from "@/lib/realtime";
 import { enforceBilling } from "@/lib/billing/subscription";
 import { guardRateLimit } from "@/lib/rate-limit/with-rate-limit";
 
-import {
-  successResponse,
-  errorResponse,
-  notFoundResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse, notFoundResponse } from "@/lib/auth/api-response";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, response } = await requirePermission("company:view_conversations");
     if (response) return response;
@@ -54,10 +47,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, response } = await requirePermission("company:respond_conversations");
     if (response) return response;
@@ -75,10 +65,7 @@ export async function POST(
       return errorResponse(`Acesso bloqueado: ${billing.reason}`, 402);
     }
 
-    const blocked = await guardRateLimit(
-      request,
-      `messages:${user.companyId}:${user.id}`
-    );
+    const blocked = await guardRateLimit(request, `messages:${user.companyId}:${user.id}`);
     if (blocked) {
       return blocked;
     }

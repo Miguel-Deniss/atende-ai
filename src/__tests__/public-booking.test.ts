@@ -1,7 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
+    $transaction: vi.fn(async (callback: (tx: unknown) => unknown) =>
+      callback((await import("@/lib/db/prisma")).prisma)
+    ),
     company: {
       findFirst: vi.fn(),
     },
@@ -10,6 +13,7 @@ vi.mock("@/lib/db/prisma", () => ({
       create: vi.fn(),
     },
     client: {
+      upsert: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
@@ -28,6 +32,7 @@ import {
   getAvailableSlots,
   createPublicBooking,
   getAvailableDates,
+  isBookingDateAllowed,
 } from "@/lib/booking/public-booking";
 
 const now = new Date();
@@ -57,7 +62,11 @@ function makeCompany(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-01-01T12:00:00.000Z"));
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe("getPublicCompany", () => {
   it("retorna dados públicos da empresa", async () => {
@@ -96,6 +105,17 @@ describe("getAvailableDates", () => {
   });
 });
 
+describe("isBookingDateAllowed", () => {
+  it("aceita somente datas reais dentro da janela de 30 dias", () => {
+    const reference = new Date(2026, 0, 1, 12);
+    expect(isBookingDateAllowed("2026-01-01", reference)).toBe(true);
+    expect(isBookingDateAllowed("2026-01-30", reference)).toBe(true);
+    expect(isBookingDateAllowed("2025-12-31", reference)).toBe(false);
+    expect(isBookingDateAllowed("2026-01-31", reference)).toBe(false);
+    expect(isBookingDateAllowed("2026-02-30", reference)).toBe(false);
+  });
+});
+
 describe("getAvailableSlots", () => {
   it("gera slots das 08h às 18h e remove horários ocupados", async () => {
     (prisma.appointment.findMany as any).mockResolvedValue([{ time: "10:00" }]);
@@ -113,6 +133,12 @@ describe("getAvailableSlots", () => {
     const slots = await getAvailableSlots("company-1", "2026-01-10", null);
     expect(slots).toEqual([]);
   });
+
+  it("rejeita datas fora da janela permitida sem consultar o banco", async () => {
+    const slots = await getAvailableSlots("company-1", "2026-02-01", "08:00 às 18:00");
+    expect(slots).toEqual([]);
+    expect(prisma.appointment.findMany).not.toHaveBeenCalled();
+  });
 });
 
 describe("createPublicBooking", () => {
@@ -127,19 +153,20 @@ describe("createPublicBooking", () => {
   it("cria cliente novo e agendamento pendente", async () => {
     (prisma.company.findFirst as any).mockResolvedValue(makeCompany());
     (prisma.appointment.findMany as any).mockResolvedValue([]);
-    (prisma.client.findFirst as any).mockResolvedValue(null);
-    (prisma.client.create as any).mockResolvedValue({ id: "client-1" });
+    (prisma.client.upsert as any).mockResolvedValue({ id: "client-1" });
     (prisma.appointment.create as any).mockResolvedValue({ id: "appt-1" });
 
     const result = await createPublicBooking("company-1", "barbearia-teste", input);
 
     expect(result.success).toBe(true);
     expect(result.appointmentId).toBe("appt-1");
-    expect(prisma.client.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ phone: input.phone }) })
+    expect(prisma.client.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ phone: "5511999999999" }) })
     );
     expect(prisma.appointment.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: "pending", clientId: "client-1" }) })
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "pending", clientId: "client-1" }),
+      })
     );
     expect(createLog).toHaveBeenCalled();
   });
@@ -147,14 +174,16 @@ describe("createPublicBooking", () => {
   it("reutiliza cliente existente pelo telefone", async () => {
     (prisma.company.findFirst as any).mockResolvedValue(makeCompany());
     (prisma.appointment.findMany as any).mockResolvedValue([]);
-    (prisma.client.findFirst as any).mockResolvedValue({ id: "client-1", email: null });
-    (prisma.client.update as any).mockResolvedValue({ id: "client-1" });
+    (prisma.client.upsert as any).mockResolvedValue({ id: "client-1", email: null });
     (prisma.appointment.create as any).mockResolvedValue({ id: "appt-1" });
 
     await createPublicBooking("company-1", "barbearia-teste", input);
 
-    expect(prisma.client.update).toHaveBeenCalled();
-    expect(prisma.client.create).not.toHaveBeenCalled();
+    expect(prisma.client.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { companyId_phone: { companyId: "company-1", phone: "5511999999999" } },
+      })
+    );
   });
 
   it("rejeita quando booking está desabilitado", async () => {

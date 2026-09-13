@@ -40,16 +40,16 @@ Company
 
 `src/lib/tenant/plan-limits.ts` define limites por plano:
 
-| Recurso | Starter | Pro | Business |
-|---|---|---|---|
-| Usuários | 3 | 10 | Ilimitado |
-| Clientes | 100 | 1.000 | 50.000 |
-| Agendamentos | 200 | 5.000 | 99.999 |
-| Conversas | 500 | 10.000 | 99.999 |
-| Uploads | 50 | 200 | 1.000 |
-| Armazenamento | 100MB | 500MB | 2GB |
-| API Keys | 2 | 5 | 20 |
-| Mensagens IA | 500 | 5.000 | 50.000 |
+| Recurso       | Starter | Pro    | Business  |
+| ------------- | ------- | ------ | --------- |
+| Usuários      | 3       | 10     | Ilimitado |
+| Clientes      | 100     | 1.000  | 50.000    |
+| Agendamentos  | 200     | 5.000  | 99.999    |
+| Conversas     | 500     | 10.000 | 99.999    |
+| Uploads       | 50      | 200    | 1.000     |
+| Armazenamento | 100MB   | 500MB  | 2GB       |
+| API Keys      | 2       | 5      | 20        |
+| Mensagens IA  | 500     | 5.000  | 50.000    |
 
 ## Fluxo de Requisição
 

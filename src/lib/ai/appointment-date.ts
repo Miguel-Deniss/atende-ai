@@ -22,10 +22,7 @@ function addDays(value: Date, days: number): Date {
   return date;
 }
 
-export function resolveAppointmentDate(
-  raw: string,
-  base: Date = new Date()
-): Date | null {
+export function resolveAppointmentDate(raw: string, base: Date = new Date()): Date | null {
   const value = normalizeText(raw);
   if (!value) return null;
 
@@ -42,11 +39,7 @@ export function resolveAppointmentDate(
     const day = Number(iso[3]);
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
     const date = new Date(year, month - 1, day);
-    if (
-      date.getFullYear() !== year ||
-      date.getMonth() !== month - 1 ||
-      date.getDate() !== day
-    ) {
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
       return null;
     }
     return date;

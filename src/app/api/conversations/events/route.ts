@@ -14,19 +14,13 @@ export async function GET(request: NextRequest) {
     start(controller) {
       const send = (event: string, data: unknown) => {
         try {
-          controller.enqueue(
-            encoder.encode(
-              `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
-            )
-          );
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
         } catch {
           // conexão já fechada
         }
       };
 
-      const unsubscribe = subscribe(user.companyId, (type, data) =>
-        send(type, data)
-      );
+      const unsubscribe = subscribe(user.companyId, (type, data) => send(type, data));
 
       send("ready", { ts: Date.now() });
 

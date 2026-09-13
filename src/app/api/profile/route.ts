@@ -5,6 +5,7 @@ import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { profileUpdateSchema, passwordChangeSchema } from "@/lib/validators/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createLog } from "@/lib/logger";
+import { clearAuthCookies } from "@/lib/auth/session";
 
 export async function GET() {
   try {
@@ -89,10 +90,17 @@ export async function PATCH(request: NextRequest) {
       }
 
       const passwordHash = await hashPassword(parsed.data.newPassword);
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { passwordHash },
-      });
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash },
+        }),
+        prisma.session.updateMany({
+          where: { userId: user.id, isRevoked: false },
+          data: { isRevoked: true },
+        }),
+      ]);
+      await clearAuthCookies();
 
       await createLog({
         action: "PASSWORD_CHANGE",
@@ -103,7 +111,7 @@ export async function PATCH(request: NextRequest) {
         userId: user.id,
       });
 
-      return successResponse({ message: "Senha alterada com sucesso" });
+      return successResponse({ message: "Senha alterada. Entre novamente." });
     }
 
     return errorResponse("Nenhuma alteração fornecida", 400);

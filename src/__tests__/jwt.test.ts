@@ -1,16 +1,12 @@
 import { describe, it, expect } from "vitest";
-import {
-  signAccessToken,
-  signRefreshToken,
-  verifyToken,
-  verifyRefreshToken,
-} from "@/lib/auth/jwt";
+import { signAccessToken, signRefreshToken, verifyToken, verifyRefreshToken } from "@/lib/auth/jwt";
 
 describe("JWT", () => {
   const payload = {
     userId: "user-123",
     companyId: "company-456",
     role: "ADMIN",
+    sessionToken: "session-789",
   };
 
   it("should sign and verify access token", () => {
@@ -25,23 +21,20 @@ describe("JWT", () => {
     expect(decoded.sessionToken).toBeDefined();
   });
 
-  it("should include unique sessionToken in each access token", () => {
-    const token1 = signAccessToken(payload);
-    const token2 = signAccessToken(payload);
-
-    const decoded1 = verifyToken(token1);
-    const decoded2 = verifyToken(token2);
-
-    expect(decoded1.sessionToken).not.toBe(decoded2.sessionToken);
+  it("should bind the access token to the persisted session", () => {
+    const decoded = verifyToken(signAccessToken(payload));
+    expect(decoded.sessionToken).toBe(payload.sessionToken);
+    expect(decoded.type).toBe("access");
   });
 
   it("should sign and verify refresh token", () => {
-    const token = signRefreshToken(payload.userId, payload.companyId);
+    const token = signRefreshToken(payload.userId, payload.companyId, payload.sessionToken);
     expect(token).toBeDefined();
 
     const decoded = verifyRefreshToken(token);
     expect(decoded.userId).toBe(payload.userId);
     expect(decoded.companyId).toBe(payload.companyId);
+    expect(decoded.sessionToken).toBe(payload.sessionToken);
     expect(decoded.type).toBe("refresh");
   });
 
@@ -60,9 +53,8 @@ describe("JWT", () => {
     expect(() => verifyToken(tamperedToken)).toThrow();
   });
 
-  it("should decode access token with refresh function", () => {
+  it("should reject an access token as a refresh token", () => {
     const token = signAccessToken(payload);
-    const decoded = verifyRefreshToken(token);
-    expect(decoded.userId).toBe(payload.userId);
+    expect(() => verifyRefreshToken(token)).toThrow(/refresh token/i);
   });
 });

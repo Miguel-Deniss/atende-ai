@@ -13,21 +13,15 @@ describe("resolveAppointmentDate", () => {
   });
 
   it("deve resolver 'depois de amanha'", () => {
-    expect(resolveAppointmentDate("depois de amanha", BASE)).toEqual(
-      new Date(2026, 7, 5)
-    );
+    expect(resolveAppointmentDate("depois de amanha", BASE)).toEqual(new Date(2026, 7, 5));
   });
 
   it("deve resolver data ISO", () => {
-    expect(resolveAppointmentDate("2026-08-08", BASE)).toEqual(
-      new Date(2026, 7, 8)
-    );
+    expect(resolveAppointmentDate("2026-08-08", BASE)).toEqual(new Date(2026, 7, 8));
   });
 
   it("deve resolver data ISO com mes de um digito", () => {
-    expect(resolveAppointmentDate("2026-8-8", BASE)).toEqual(
-      new Date(2026, 7, 8)
-    );
+    expect(resolveAppointmentDate("2026-8-8", BASE)).toEqual(new Date(2026, 7, 8));
   });
 
   it("deve resolver 'dia 20' no mes atual quando futuro", () => {
@@ -39,9 +33,7 @@ describe("resolveAppointmentDate", () => {
   });
 
   it("deve resolver dia da semana atual (segunda-feira)", () => {
-    expect(resolveAppointmentDate("segunda-feira", BASE)).toEqual(
-      new Date(2026, 7, 3)
-    );
+    expect(resolveAppointmentDate("segunda-feira", BASE)).toEqual(new Date(2026, 7, 3));
   });
 
   it("deve resolver dia da semana futuro (sabado)", () => {

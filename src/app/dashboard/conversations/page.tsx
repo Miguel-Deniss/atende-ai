@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Conversation {
   id: string;
@@ -33,7 +33,7 @@ export default function ConversationsPage() {
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
-  async function loadConversations() {
+  const loadConversations = useCallback(async () => {
     try {
       setLoadingList(true);
       const res = await fetch("/api/conversations");
@@ -44,9 +44,9 @@ export default function ConversationsPage() {
     } finally {
       setLoadingList(false);
     }
-  }
+  }, []);
 
-  async function loadMessages() {
+  const loadMessages = useCallback(async () => {
     if (!selectedId) return;
     try {
       setLoadingMessages(true);
@@ -58,7 +58,7 @@ export default function ConversationsPage() {
     } finally {
       setLoadingMessages(false);
     }
-  }
+  }, [selectedId]);
 
   async function sendMessage() {
     if (!input.trim() || !selectedId || sending) return;
@@ -108,12 +108,12 @@ export default function ConversationsPage() {
 
   useEffect(() => {
     loadConversations();
-  }, []);
+  }, [loadConversations]);
 
   useEffect(() => {
     setMessages([]);
     if (selectedId) loadMessages();
-  }, [selectedId]);
+  }, [loadMessages, selectedId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -145,7 +145,7 @@ export default function ConversationsPage() {
     });
 
     return () => es.close();
-  }, [selectedId]);
+  }, [loadConversations, loadMessages, selectedId]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -154,7 +154,7 @@ export default function ConversationsPage() {
     }, 20000);
 
     return () => clearInterval(interval);
-  }, [selectedId]);
+  }, [loadConversations, loadMessages, selectedId]);
 
   return (
     <div className="flex h-[calc(100vh-4rem)] lg:h-[calc(100vh-2rem)] -m-4 lg:-m-8 overflow-hidden bg-[#0F172A]">
@@ -271,8 +271,8 @@ export default function ConversationsPage() {
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {selected.handledBy && (
               <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-                Atendimento humano ativo: suas respostas são enviadas direto ao
-                WhatsApp, sem passar pela IA.
+                Atendimento humano ativo: suas respostas são enviadas direto ao WhatsApp, sem passar
+                pela IA.
               </div>
             )}
             {loadingMessages && (

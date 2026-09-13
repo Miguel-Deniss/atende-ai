@@ -13,10 +13,9 @@ import {
 import { loadConversationContext } from "@/lib/ai/context-loader";
 import { findOrCreateWhatsAppClient } from "./client";
 import { sendWhatsAppMessage } from "./send-message";
-import type {
-  IncomingWhatsAppMessage,
-  WhatsAppWebhookPayload,
-} from "./types";
+import type { IncomingWhatsAppMessage, WhatsAppWebhookPayload } from "./types";
+import { Prisma } from "@prisma/client";
+import { checkAIMessageLimit, checkConversationLimit } from "@/lib/tenant/plan-limits";
 
 export interface WhatsAppWebhookDeps {
   process?: (input: ProcessMessageInput) => Promise<ProcessMessageResult>;
@@ -93,6 +92,15 @@ export async function processWhatsAppWebhook(
     }
 
     try {
+      const alreadyProcessed = await prisma.message.findUnique({
+        where: { externalId: incoming.messageId },
+        select: { id: true },
+      });
+      if (alreadyProcessed) {
+        result.skipped++;
+        continue;
+      }
+
       const config = await prisma.whatsAppConfig.findFirst({
         where: {
           phoneNumberId: incoming.phoneNumberId,
@@ -126,6 +134,15 @@ export async function processWhatsAppWebhook(
         continue;
       }
 
+      const company = await prisma.company.findUnique({
+        where: { id: config.companyId },
+        select: { planType: true },
+      });
+      if (!company) {
+        result.skipped++;
+        continue;
+      }
+
       const whatsappClient = await findOrCreateWhatsAppClient(
         config.companyId,
         incoming.from,
@@ -143,6 +160,20 @@ export async function processWhatsAppWebhook(
       }
 
       if (!conversation) {
+        const currentCount = await prisma.conversation.count({
+          where: { companyId: config.companyId, deletedAt: null },
+        });
+        const conversationLimit = checkConversationLimit(currentCount, company.planType);
+        if (!conversationLimit.allowed) {
+          result.skipped++;
+          await createLog({
+            action: "BILLING_BLOCKED",
+            entity: "conversation",
+            description: conversationLimit.message,
+            companyId: config.companyId,
+          });
+          continue;
+        }
         conversation = await prisma.conversation.create({
           data: {
             companyId: config.companyId,
@@ -166,6 +197,7 @@ export async function processWhatsAppWebhook(
             conversationId: conversation.id,
             role: "user",
             content: incoming.body,
+            externalId: incoming.messageId,
           },
         });
 
@@ -189,18 +221,38 @@ export async function processWhatsAppWebhook(
         continue;
       }
 
-      const context = await loadConversationContext(
-        conversation.id,
-        config.companyId
-      );
+      const context = await loadConversationContext(conversation.id, config.companyId);
       if (!context) {
         result.skipped++;
+        continue;
+      }
+
+      const monthStart = new Date();
+      monthStart.setUTCDate(1);
+      monthStart.setUTCHours(0, 0, 0, 0);
+      const aiMessagesThisMonth = await prisma.message.count({
+        where: {
+          role: "assistant",
+          createdAt: { gte: monthStart },
+          conversation: { companyId: config.companyId },
+        },
+      });
+      const aiLimit = checkAIMessageLimit(aiMessagesThisMonth, company.planType);
+      if (!aiLimit.allowed) {
+        result.skipped++;
+        await createLog({
+          action: "BILLING_BLOCKED",
+          entity: "ai_message",
+          description: aiLimit.message,
+          companyId: config.companyId,
+        });
         continue;
       }
 
       const processed = await doProcess({
         conversationId: conversation.id,
         message: incoming.body,
+        userMessageExternalId: incoming.messageId,
         company: context.company,
         knownName: incoming.profileName ?? null,
         deps: managerDeps,
@@ -210,9 +262,7 @@ export async function processWhatsAppWebhook(
       try {
         accessToken = decrypt(config.accessToken);
       } catch {
-        throw new Error(
-          "Falha ao descriptografar o token de acesso do WhatsApp."
-        );
+        throw new Error("Falha ao descriptografar o token de acesso do WhatsApp.");
       }
 
       await doSend({
@@ -240,6 +290,10 @@ export async function processWhatsAppWebhook(
 
       result.processed++;
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        result.skipped++;
+        continue;
+      }
       result.failed++;
       const message = error instanceof Error ? error.message : String(error);
       result.errors.push(message);

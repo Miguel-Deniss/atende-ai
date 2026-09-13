@@ -34,11 +34,7 @@ describe("deliverWhatsAppMessage", () => {
     vi.mocked(decrypt).mockReturnValue("decrypted-token");
     vi.mocked(sendWhatsAppMessage).mockResolvedValue(undefined as never);
 
-    const sent = await deliverWhatsAppMessage(
-      "company-1",
-      "5511999999999",
-      "Olá"
-    );
+    const sent = await deliverWhatsAppMessage("company-1", "5511999999999", "Olá");
 
     expect(prisma.whatsAppConfig.findFirst).toHaveBeenCalledWith({
       where: { companyId: "company-1", status: "CONNECTED" },

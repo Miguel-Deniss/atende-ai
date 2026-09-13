@@ -47,9 +47,7 @@ export async function POST(request: NextRequest) {
         companyId: user.companyId,
         userId: user.id,
         ipAddress:
-          request.headers.get("x-forwarded-for") ||
-          request.headers.get("x-real-ip") ||
-          undefined,
+          request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || undefined,
         userAgent: request.headers.get("user-agent") || undefined,
       });
     } catch (error) {
@@ -63,9 +61,7 @@ export async function POST(request: NextRequest) {
         companyId: user.companyId,
         userId: user.id,
         ipAddress:
-          request.headers.get("x-forwarded-for") ||
-          request.headers.get("x-real-ip") ||
-          undefined,
+          request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || undefined,
         userAgent: request.headers.get("user-agent") || undefined,
       });
 

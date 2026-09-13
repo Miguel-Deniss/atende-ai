@@ -26,7 +26,11 @@ export function validateNonce(nonce: string, timestamp: string): boolean {
   return true;
 }
 
-export function createReplaySafePayload(payload: unknown, nonce: string, timestamp: string): string {
+export function createReplaySafePayload(
+  payload: unknown,
+  nonce: string,
+  timestamp: string
+): string {
   return JSON.stringify({
     ...(typeof payload === "object" ? payload : { value: payload }),
     _nonce: nonce,

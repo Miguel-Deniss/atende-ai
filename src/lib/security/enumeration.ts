@@ -5,10 +5,7 @@ const MAX_ATTEMPTS = 10;
 
 const requestCounts = new Map<string, { count: number; resetAt: number }>();
 
-export async function checkEnumerationRate(
-  identifier: string,
-  endpoint: string
-): Promise<boolean> {
+export async function checkEnumerationRate(identifier: string, endpoint: string): Promise<boolean> {
   const now = Date.now();
   const key = `${endpoint}:${identifier}`;
   let entry = requestCounts.get(key);

@@ -10,11 +10,7 @@ vi.mock("@/lib/db/prisma", () => ({
 }));
 
 import { prisma } from "@/lib/db/prisma";
-import {
-  validateCoupon,
-  computeDiscount,
-  incrementCouponUsage,
-} from "@/lib/billing/coupons";
+import { validateCoupon, computeDiscount, incrementCouponUsage } from "@/lib/billing/coupons";
 
 const baseCoupon = {
   id: "c1",

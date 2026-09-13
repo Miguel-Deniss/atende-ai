@@ -2,10 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { hashPassword } from "@/lib/auth/password";
 import { requirePermission } from "@/lib/auth/api-guard";
-import {
-  successResponse,
-  errorResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
 import { createUserSchema } from "@/lib/validators/auth";
 import { checkUserLimit } from "@/lib/tenant/plan-limits";
@@ -49,11 +46,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const parsed = createUserSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(
-        "Dados inválidos",
-        400,
-        parsed.error.flatten().fieldErrors
-      );
+      return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);
     }
 
     const existing = await prisma.user.findUnique({

@@ -41,8 +41,18 @@ interface FormState {
 }
 
 const monthNames = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
 ];
 
 const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -265,7 +275,11 @@ export default function PublicBookingPage() {
   return (
     <div className="min-h-screen bg-[#0F172A]">
       <div className="max-w-3xl mx-auto px-4 py-10">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
           <div className="text-center mb-8">
             <div className="w-14 h-14 rounded-2xl bg-blue-500/15 flex items-center justify-center mx-auto mb-4">
               <Scissors className="w-7 h-7 text-blue-400" />
@@ -406,7 +420,9 @@ export default function PublicBookingPage() {
                       )}
                     </Label>
                     {!form.date ? (
-                      <p className="text-sm text-gray-500 py-4 text-center">Selecione um dia para ver os horários.</p>
+                      <p className="text-sm text-gray-500 py-4 text-center">
+                        Selecione um dia para ver os horários.
+                      </p>
                     ) : loadingSlots ? (
                       <div className="flex items-center justify-center py-6">
                         <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
@@ -491,7 +507,11 @@ export default function PublicBookingPage() {
                     </div>
                   </div>
 
-                  <Button className="w-full mt-6" disabled={!canProceedToDetails || submitting} onClick={handleSubmit}>
+                  <Button
+                    className="w-full mt-6"
+                    disabled={!canProceedToDetails || submitting}
+                    onClick={handleSubmit}
+                  >
                     {submitting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (

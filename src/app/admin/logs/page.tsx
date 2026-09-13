@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, FileText, Loader2, Filter } from "lucide-react";
+import { Search, FileText, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,20 +27,25 @@ export default function AdminLogsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [actionFilter, setActionFilter] = useState("");
 
-  const load = async (p = 1) => {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(p), limit: "50" });
-    if (actionFilter) params.set("action", actionFilter);
-    const res = await fetch(`/api/admin/logs?${params}`, { credentials: "include" });
-    const data = await res.json();
-    if (data.success) {
-      setLogs(data.data.logs);
-      setTotalPages(data.data.pagination.totalPages);
-    }
-    setLoading(false);
-  };
+  const load = useCallback(
+    async (p = 1) => {
+      setLoading(true);
+      const params = new URLSearchParams({ page: String(p), limit: "50" });
+      if (actionFilter) params.set("action", actionFilter);
+      const res = await fetch(`/api/admin/logs?${params}`, { credentials: "include" });
+      const data = await res.json();
+      if (data.success) {
+        setLogs(data.data.logs);
+        setTotalPages(data.data.pagination.totalPages);
+      }
+      setLoading(false);
+    },
+    [actionFilter]
+  );
 
-  useEffect(() => { load(page); }, [page, actionFilter]);
+  useEffect(() => {
+    load(page);
+  }, [load, page]);
 
   const actionBadge = (action: string) => {
     const colors: Record<string, "success" | "warning" | "destructive" | "secondary"> = {
@@ -53,10 +58,12 @@ export default function AdminLogsPage() {
       SUSPICIOUS_ACTIVITY: "destructive",
       DATA_DELETE: "destructive",
     };
-    return <Badge variant={colors[action] || "secondary"} className="text-[10px]">{action}</Badge>;
+    return (
+      <Badge variant={colors[action] || "secondary"} className="text-[10px]">
+        {action}
+      </Badge>
+    );
   };
-
-  const actions = Array.from(new Set(logs.map((l) => l.action)));
 
   return (
     <div className="space-y-8">
@@ -70,29 +77,57 @@ export default function AdminLogsPage() {
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <Input placeholder="Filtrar por ação..." className="pl-10"
-                value={actionFilter} onChange={(e) => { setActionFilter(e.target.value); setPage(1); }} />
+              <Input
+                placeholder="Filtrar por ação..."
+                className="pl-10"
+                value={actionFilter}
+                onChange={(e) => {
+                  setActionFilter(e.target.value);
+                  setPage(1);
+                }}
+              />
             </div>
             <div className="flex gap-1 flex-wrap">
-              <Button size="sm" variant={actionFilter === "" ? "default" : "ghost"} onClick={() => { setActionFilter(""); setPage(1); }}>
+              <Button
+                size="sm"
+                variant={actionFilter === "" ? "default" : "ghost"}
+                onClick={() => {
+                  setActionFilter("");
+                  setPage(1);
+                }}
+              >
                 Todas
               </Button>
-              {["LOGIN_FAILURE", "PAYMENT_SUCCESS", "PLAN_CHANGE", "SUSPICIOUS_ACTIVITY"].map((a) => (
-                <Button key={a} size="sm" variant={actionFilter === a ? "default" : "ghost"}
-                  onClick={() => { setActionFilter(a); setPage(1); }}>
-                  {a}
-                </Button>
-              ))}
+              {["LOGIN_FAILURE", "PAYMENT_SUCCESS", "PLAN_CHANGE", "SUSPICIOUS_ACTIVITY"].map(
+                (a) => (
+                  <Button
+                    key={a}
+                    size="sm"
+                    variant={actionFilter === a ? "default" : "ghost"}
+                    onClick={() => {
+                      setActionFilter(a);
+                      setPage(1);
+                    }}
+                  >
+                    {a}
+                  </Button>
+                )
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-blue-400" /></div>
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+            </div>
           ) : (
             <div className="space-y-2 max-h-[600px] overflow-y-auto">
               {logs.map((log) => (
-                <div key={log.id} className="flex items-start gap-3 p-3 rounded-xl hover:bg-secondary/20 transition-colors">
+                <div
+                  key={log.id}
+                  className="flex items-start gap-3 p-3 rounded-xl hover:bg-secondary/20 transition-colors"
+                >
                   <div className="p-2 rounded-lg bg-secondary/30 flex-shrink-0">
                     <FileText className="w-4 h-4 text-gray-400" />
                   </div>
@@ -105,7 +140,11 @@ export default function AdminLogsPage() {
                     </div>
                     <p className="text-sm text-gray-300 mt-1">{log.description}</p>
                     <div className="flex gap-4 text-xs text-gray-600 mt-1">
-                      {log.user && <span>{log.user.name} ({log.user.email})</span>}
+                      {log.user && (
+                        <span>
+                          {log.user.name} ({log.user.email})
+                        </span>
+                      )}
                       <span>{log.company.name}</span>
                       {log.ipAddress && <span>IP: {log.ipAddress}</span>}
                     </div>
@@ -117,9 +156,25 @@ export default function AdminLogsPage() {
 
           {totalPages > 1 && (
             <div className="flex justify-center gap-2 mt-6">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
-              <span className="text-sm text-gray-500 py-2">{page} de {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-gray-500 py-2">
+                {page} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Próxima
+              </Button>
             </div>
           )}
         </CardContent>

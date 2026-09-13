@@ -44,6 +44,8 @@ interface AuthContextType {
     phone?: string
   ) => Promise<{
     success: boolean;
+    requiresEmailVerification?: boolean;
+    email?: string;
     error?: string;
   }>;
 
@@ -63,8 +65,7 @@ export function useAuth() {
   return context;
 }
 
-async function apiFetch(url: string, options?: RequestInit) {
-
+async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     credentials: "include",
 
@@ -77,17 +78,27 @@ async function apiFetch(url: string, options?: RequestInit) {
 
   const text = await response.text();
 
-  console.log("STATUS:", response.status);
-  console.log("URL FINAL:", response.url);
-  console.log("HTML RECEBIDO:", text.substring(0, 300));
-
   if (!text) {
     throw new Error("Resposta vazia da API");
   }
 
-  const data = JSON.parse(text);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("Resposta inválida da API");
+  }
 
-  console.log("JSON:", data);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Resposta inválida da API");
+  }
+
+  const data = parsed as {
+    success?: boolean;
+    error?: string;
+    code?: string;
+    data?: T;
+  };
 
   if (!data.success) {
     const error = new Error(data.error || "Erro interno") as Error & { code?: string };
@@ -95,7 +106,7 @@ async function apiFetch(url: string, options?: RequestInit) {
     throw error;
   }
 
-  return data;
+  return data.data as T;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -107,13 +118,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const data = await apiFetch("/api/auth/me");
-
-      console.log("USUARIO ATUAL:", data);
-
-      setUser(data.data);
-    } catch (error) {
-      console.log("ERRO REFRESH USER:", error);
+      const currentUser = await apiFetch<User>("/api/auth/me");
+      setUser(currentUser);
+    } catch {
       setUser(null);
     } finally {
       setLoading(false);
@@ -124,67 +131,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser();
   }, [refreshUser]);
 
-  const login = useCallback(async (email: string, password: string, totpCode?: string, rememberMe?: boolean) => {
-    console.log("ENTROU NO AUTH LOGIN");
+  const login = useCallback(
+    async (email: string, password: string, totpCode?: string, rememberMe?: boolean) => {
+      try {
+        const data = await apiFetch<{
+          requiresTwoFactor?: boolean;
+          userId?: string;
+          user?: User;
+        }>("/api/auth/login", {
+          method: "POST",
 
-    try {
-      console.log("ENVIANDO LOGIN:", email);
+          body: JSON.stringify({
+            email,
+            password,
+            totpCode,
+            rememberMe,
+          }),
+        });
 
-      const data = await apiFetch("/api/auth/login", {
-        method: "POST",
+        if (data.requiresTwoFactor) {
+          return {
+            success: false,
+            requiresTwoFactor: true,
+            userId: data.userId,
+          };
+        }
 
-        body: JSON.stringify({
-          email,
-          password,
-          totpCode,
-          rememberMe,
-        }),
-      });
+        const loggedUser = data.user;
 
-      if (data.data?.requiresTwoFactor) {
+        if (!loggedUser) {
+          throw new Error("Usuário ausente na resposta de login");
+        }
+
+        setUser(loggedUser);
+
+        return {
+          success: true,
+        };
+      } catch (error) {
+        console.error("ERRO LOGIN AUTH:", error);
+
         return {
           success: false,
-          requiresTwoFactor: true,
-          userId: data.data.userId,
+          code: error instanceof Error ? (error as Error & { code?: string }).code : undefined,
+          error: error instanceof Error ? error.message : "Erro ao entrar",
         };
       }
-
-      const loggedUser = data.data.user;
-
-      setUser(loggedUser);
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      console.error("ERRO LOGIN AUTH:", error);
-
-      return {
-        success: false,
-        code: error instanceof Error ? (error as Error & { code?: string }).code : undefined,
-        error: error instanceof Error ? error.message : "Erro ao entrar",
-      };
-    }
-  }, []);
+    },
+    []
+  );
 
   const register = useCallback(
     async (name: string, email: string, password: string, companyName: string, phone?: string) => {
       try {
-        const data = await apiFetch("/api/auth/register", {
-          method: "POST",
-          body: JSON.stringify({
-            name,
-            email,
-            password,
-            companyName,
-            phone,
-          }),
-        });
-
-        setUser(data.user);
+        const data = await apiFetch<{ requiresEmailVerification: boolean; email: string }>(
+          "/api/auth/register",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              name,
+              email,
+              password,
+              companyName,
+              phone,
+            }),
+          }
+        );
 
         return {
           success: true,
+          requiresEmailVerification: data.requiresEmailVerification,
+          email: data.email,
         };
       } catch (error) {
         return {

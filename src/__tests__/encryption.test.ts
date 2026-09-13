@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  encrypt,
-  decrypt,
-  hashToken,
-  generateToken,
-} from "@/lib/security/encryption";
+import { encrypt, decrypt, hashToken, generateToken } from "@/lib/security/encryption";
 
 describe("Encryption", () => {
   it("should encrypt and decrypt text", () => {

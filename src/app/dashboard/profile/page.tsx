@@ -169,7 +169,8 @@ export default function ProfilePage() {
             <div>
               <p className="text-sm font-semibold text-amber-300">E-mail não verificado</p>
               <p className="text-sm text-gray-400">
-                Confirme seu e-mail acessando o link enviado na sua caixa de entrada para ativar sua conta por completo.
+                Confirme seu e-mail acessando o link enviado na sua caixa de entrada para ativar sua
+                conta por completo.
               </p>
             </div>
           </div>
@@ -190,7 +191,7 @@ export default function ProfilePage() {
               >
                 <Avatar className="w-20 h-20">
                   {data.avatar ? (
-                    <AvatarImage src={data.avatar} />
+                    <AvatarImage src={data.avatar} alt={`Foto de perfil de ${data.name}`} />
                   ) : (
                     <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-400 text-xl font-bold text-white">
                       {data.name.charAt(0)}
@@ -217,25 +218,46 @@ export default function ProfilePage() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome</Label>
-                <Input id="name" value={data.name} onChange={(e) => update("name", e.target.value)} />
+                <Input
+                  id="name"
+                  value={data.name}
+                  onChange={(e) => update("name", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={data.email} onChange={(e) => update("email", e.target.value)} />
+                <Input
+                  id="email"
+                  type="email"
+                  value={data.email}
+                  onChange={(e) => update("email", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
-                <Input id="phone" value={data.phone ?? ""} onChange={(e) => update("phone", e.target.value)} />
+                <Input
+                  id="phone"
+                  value={data.phone ?? ""}
+                  onChange={(e) => update("phone", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Cargo</Label>
-                <Input id="role" value={data.role} onChange={(e) => update("role", e.target.value)} />
+                <Input
+                  id="role"
+                  value={data.role}
+                  onChange={(e) => update("role", e.target.value)}
+                />
               </div>
             </div>
 
             <div className="flex justify-end mt-6">
               <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
                 {saving ? "Salvando..." : "Salvar Alterações"}
               </Button>
             </div>
@@ -256,42 +278,74 @@ export default function ProfilePage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="current">Senha atual</Label>
-              <Input id="current" type="password" value={passwordForm.current}
-                onChange={(e) => { setPasswordForm((p) => ({ ...p, current: e.target.value })); setPasswordErrors((p) => ({ ...p, current: "" })); }}
+              <Input
+                id="current"
+                type="password"
+                value={passwordForm.current}
+                onChange={(e) => {
+                  setPasswordForm((p) => ({ ...p, current: e.target.value }));
+                  setPasswordErrors((p) => ({ ...p, current: "" }));
+                }}
                 className={passwordErrors.current ? "border-red-500/50" : ""}
               />
-              {passwordErrors.current && <p className="text-xs text-red-400">{passwordErrors.current}</p>}
+              {passwordErrors.current && (
+                <p className="text-xs text-red-400">{passwordErrors.current}</p>
+              )}
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="new">Nova senha</Label>
-                <Input id="new" type="password" value={passwordForm.newPwd}
-                  onChange={(e) => { setPasswordForm((p) => ({ ...p, newPwd: e.target.value })); setPasswordErrors((p) => ({ ...p, newPwd: "" })); }}
+                <Input
+                  id="new"
+                  type="password"
+                  value={passwordForm.newPwd}
+                  onChange={(e) => {
+                    setPasswordForm((p) => ({ ...p, newPwd: e.target.value }));
+                    setPasswordErrors((p) => ({ ...p, newPwd: "" }));
+                  }}
                   className={passwordErrors.newPwd ? "border-red-500/50" : ""}
                 />
-                {passwordErrors.newPwd && <p className="text-xs text-red-400">{passwordErrors.newPwd}</p>}
+                {passwordErrors.newPwd && (
+                  <p className="text-xs text-red-400">{passwordErrors.newPwd}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm">Confirmar nova senha</Label>
                 <div className="relative">
-                  <Input id="confirm" type="password" value={passwordForm.confirm}
-                    onChange={(e) => { setPasswordForm((p) => ({ ...p, confirm: e.target.value })); setPasswordErrors((p) => ({ ...p, confirm: "" })); }}
+                  <Input
+                    id="confirm"
+                    type="password"
+                    value={passwordForm.confirm}
+                    onChange={(e) => {
+                      setPasswordForm((p) => ({ ...p, confirm: e.target.value }));
+                      setPasswordErrors((p) => ({ ...p, confirm: "" }));
+                    }}
                     className={passwordErrors.confirm ? "border-red-500/50 pr-10" : "pr-10"}
                   />
-                  {passwordForm.confirm && (
-                    passwordForm.newPwd === passwordForm.confirm ? (
+                  {passwordForm.confirm &&
+                    (passwordForm.newPwd === passwordForm.confirm ? (
                       <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
                     ) : (
                       <X className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
-                    )
-                  )}
+                    ))}
                 </div>
-                {passwordErrors.confirm && <p className="text-xs text-red-400">{passwordErrors.confirm}</p>}
+                {passwordErrors.confirm && (
+                  <p className="text-xs text-red-400">{passwordErrors.confirm}</p>
+                )}
               </div>
             </div>
             <div className="flex justify-end">
-              <Button onClick={handlePasswordChange} disabled={savingPassword} variant="outline" className="flex items-center gap-2">
-                {savingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <Button
+                onClick={handlePasswordChange}
+                disabled={savingPassword}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                {savingPassword ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
                 {savingPassword ? "Salvando..." : "Alterar Senha"}
               </Button>
             </div>

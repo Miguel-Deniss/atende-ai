@@ -1,8 +1,5 @@
 import { NextRequest } from "next/server";
-import {
-  successResponse,
-  errorResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { requireRole } from "@/lib/auth/api-guard";
 import { prisma } from "@/lib/db/prisma";
 import { couponSchema } from "@/lib/validators/auth";

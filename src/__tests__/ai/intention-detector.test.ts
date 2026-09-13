@@ -1,9 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-  detectIntent,
-  detectIntentSync,
-  parseConfirmation,
-} from "@/lib/ai/intention-detector";
+import { detectIntent, detectIntentSync, parseConfirmation } from "@/lib/ai/intention-detector";
 import { defaultConversationState, type ConversationState } from "@/lib/ai/types";
 
 function freshState(): ConversationState {

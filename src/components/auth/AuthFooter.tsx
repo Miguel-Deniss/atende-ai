@@ -13,7 +13,10 @@ export function AuthFooter() {
           Privacidade
         </Link>
         <span className="text-gray-700">•</span>
-        <Link href="/help" className="inline-flex items-center gap-1 hover:text-blue-400 transition-colors">
+        <Link
+          href="/contact"
+          className="inline-flex items-center gap-1 hover:text-blue-400 transition-colors"
+        >
           <HelpCircle className="w-3 h-3" />
           Suporte
         </Link>

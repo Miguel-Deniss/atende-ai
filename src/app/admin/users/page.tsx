@@ -1,15 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Users, Loader2, Pencil, Trash2, Shield, ShieldOff } from "lucide-react";
+import { Search, Loader2, Pencil, Trash2, Shield, ShieldOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 
 interface AdminUser {
@@ -49,6 +55,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [submittedSearch, setSubmittedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [page, setPage] = useState(1);
@@ -58,25 +65,33 @@ export default function AdminUsersPage() {
   const [editRole, setEditRole] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const load = async (p = 1) => {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(p), limit: "20" });
-    if (search) params.set("search", search);
-    if (statusFilter !== "ALL") params.set("status", statusFilter.toLowerCase());
-    if (roleFilter !== "ALL") params.set("role", roleFilter);
-    const res = await fetch(`/api/admin/users?${params}`, { credentials: "include" });
-    const data = await res.json();
-    if (data.success) {
-      setUsers(data.data.users);
-      setTotalPages(data.data.pagination.totalPages);
-      setTotalUsers(data.data.pagination.total);
-    }
-    setLoading(false);
+  const load = useCallback(
+    async (p = 1) => {
+      setLoading(true);
+      const params = new URLSearchParams({ page: String(p), limit: "20" });
+      if (submittedSearch) params.set("search", submittedSearch);
+      if (statusFilter !== "ALL") params.set("status", statusFilter.toLowerCase());
+      if (roleFilter !== "ALL") params.set("role", roleFilter);
+      const res = await fetch(`/api/admin/users?${params}`, { credentials: "include" });
+      const data = await res.json();
+      if (data.success) {
+        setUsers(data.data.users);
+        setTotalPages(data.data.pagination.totalPages);
+        setTotalUsers(data.data.pagination.total);
+      }
+      setLoading(false);
+    },
+    [roleFilter, statusFilter, submittedSearch]
+  );
+
+  useEffect(() => {
+    load(page);
+  }, [load, page]);
+
+  const handleSearch = () => {
+    setPage(1);
+    setSubmittedSearch(search.trim());
   };
-
-  useEffect(() => { load(page); }, [page, statusFilter, roleFilter]);
-
-  const handleSearch = () => { setPage(1); load(1); };
 
   const openEdit = (u: AdminUser) => {
     setEditing(u);
@@ -159,11 +174,21 @@ export default function AdminUsersPage() {
           <div className="flex gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <Input placeholder="Buscar por nome ou e-mail..." className="pl-10"
-                value={search} onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()} />
+              <Input
+                placeholder="Buscar por nome ou e-mail..."
+                className="pl-10"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              />
             </div>
-            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => {
+                setStatusFilter(v);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -173,7 +198,13 @@ export default function AdminUsersPage() {
                 <SelectItem value="INACTIVE">Inativos</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v); setPage(1); }}>
+            <Select
+              value={roleFilter}
+              onValueChange={(v) => {
+                setRoleFilter(v);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="w-[170px]">
                 <SelectValue placeholder="Papel" />
               </SelectTrigger>
@@ -201,17 +232,28 @@ export default function AdminUsersPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border/50">
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">Usuário</th>
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">Empresa</th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">
+                      Usuário
+                    </th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">
+                      Empresa
+                    </th>
                     <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">Papel</th>
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">Status</th>
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden lg:table-cell">Último acesso</th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">
+                      Status
+                    </th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden lg:table-cell">
+                      Último acesso
+                    </th>
                     <th className="w-24 pb-3 px-2" />
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((u) => (
-                    <tr key={u.id} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
+                    <tr
+                      key={u.id}
+                      className="border-b border-border/30 hover:bg-secondary/20 transition-colors"
+                    >
                       <td className="py-3 px-2">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-violet-400 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
@@ -225,38 +267,54 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="py-3 px-2">
                         <p className="text-sm text-gray-300">{u.company.name}</p>
-                        <p className="text-xs text-gray-600">{u.company.planType} · {u.company.status}</p>
+                        <p className="text-xs text-gray-600">
+                          {u.company.planType} · {u.company.status}
+                        </p>
                       </td>
                       <td className="py-3 px-2">{roleBadge(u.role)}</td>
                       <td className="py-3 px-2 hidden md:table-cell">
                         <div className="flex gap-1">
-                          <Badge variant={u.isActive ? "success" : "secondary"} className="text-[10px]">
+                          <Badge
+                            variant={u.isActive ? "success" : "secondary"}
+                            className="text-[10px]"
+                          >
                             {u.isActive ? "Ativo" : "Inativo"}
                           </Badge>
                           {u.twoFactorEnabled && (
-                            <Badge variant="outline" className="text-[10px]">2FA</Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              2FA
+                            </Badge>
                           )}
                         </div>
                       </td>
                       <td className="py-3 px-2 hidden lg:table-cell text-sm text-gray-400">
-                        {u.lastLoginAt
-                          ? new Date(u.lastLoginAt).toLocaleString("pt-BR")
-                          : "Nunca"}
+                        {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString("pt-BR") : "Nunca"}
                       </td>
                       <td className="py-3 px-2">
                         <div className="flex gap-1 justify-end">
-                          <button onClick={() => openEdit(u)}
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-secondary/30 transition-colors">
+                          <button
+                            onClick={() => openEdit(u)}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-secondary/30 transition-colors"
+                          >
                             <Pencil className="w-4 h-4" />
                           </button>
                           {u.role !== "SUPER_ADMIN" && (
                             <>
-                              <button onClick={() => toggleActive(u)} title={u.isActive ? "Desativar" : "Ativar"}
-                                className="p-1.5 rounded-lg text-gray-500 hover:text-amber-400 hover:bg-secondary/30 transition-colors">
-                                {u.isActive ? <ShieldOff className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+                              <button
+                                onClick={() => toggleActive(u)}
+                                title={u.isActive ? "Desativar" : "Ativar"}
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-amber-400 hover:bg-secondary/30 transition-colors"
+                              >
+                                {u.isActive ? (
+                                  <ShieldOff className="w-4 h-4" />
+                                ) : (
+                                  <Shield className="w-4 h-4" />
+                                )}
                               </button>
-                              <button onClick={() => remove(u)}
-                                className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-secondary/30 transition-colors">
+                              <button
+                                onClick={() => remove(u)}
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-secondary/30 transition-colors"
+                              >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </>
@@ -272,11 +330,23 @@ export default function AdminUsersPage() {
 
           {totalPages > 1 && (
             <div className="flex justify-center gap-2 mt-6">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
                 Anterior
               </Button>
-              <span className="text-sm text-gray-500 py-2">{page} de {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              <span className="text-sm text-gray-500 py-2">
+                {page} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
                 Próxima
               </Button>
             </div>
@@ -284,8 +354,11 @@ export default function AdminUsersPage() {
         </CardContent>
       </Card>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)}
-        title={editing ? `Editar ${editing.name}` : ""}>
+      <Modal
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title={editing ? `Editar ${editing.name}` : ""}
+      >
         {editing && (
           <div className="space-y-4">
             <div className="p-3 rounded-xl bg-secondary/20">
@@ -297,10 +370,14 @@ export default function AdminUsersPage() {
             <div className="space-y-1.5">
               <Label>Papel</Label>
               <Select value={editRole} onValueChange={setEditRole}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {MANAGABLE_ROLES.map((role) => (
-                    <SelectItem key={role} value={role}>{roleLabels[role]}</SelectItem>
+                    <SelectItem key={role} value={role}>
+                      {roleLabels[role]}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -310,7 +387,9 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="flex gap-2 justify-end pt-2 border-t border-border/30">
-              <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+              <Button variant="ghost" onClick={() => setEditing(null)}>
+                Cancelar
+              </Button>
               <Button onClick={saveRole} disabled={saving || editing.role === "SUPER_ADMIN"}>
                 {saving && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
                 Salvar

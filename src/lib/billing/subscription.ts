@@ -8,8 +8,6 @@ export interface BillingDecision {
   reason?: string;
 }
 
-const ACTIVE_STATUSES = new Set(["ACTIVE", "TRIALING"]);
-
 export async function getCompanyBilling(companyId: string) {
   const [company, subscription] = await Promise.all([
     prisma.company.findUnique({
@@ -86,7 +84,8 @@ export async function createOrUpdateSubscription(
 ): Promise<{ subscription: { id: string; status: string; nextBillingDate: Date | null } }> {
   const now = new Date();
   const nextBillingDate =
-    input.nextBillingDate ?? (() => {
+    input.nextBillingDate ??
+    (() => {
       const d = new Date(now);
       d.setMonth(d.getMonth() + 1);
       return d;
@@ -133,9 +132,7 @@ export async function createOrUpdateSubscription(
       subscriptionStatus: status,
       trialEndsAt,
       ...(input.stripeCustomerId ? { stripeCustomerId: input.stripeCustomerId } : {}),
-      ...(input.stripeSubscriptionId
-        ? { stripeSubscriptionId: input.stripeSubscriptionId }
-        : {}),
+      ...(input.stripeSubscriptionId ? { stripeSubscriptionId: input.stripeSubscriptionId } : {}),
     },
   });
 
@@ -219,9 +216,7 @@ export async function updateSubscriptionStatus(input: {
     data: {
       status: input.status,
       ...(promote && input.planId ? { planId: input.planId } : {}),
-      ...(input.nextBillingDate !== undefined
-        ? { nextBillingDate: input.nextBillingDate }
-        : {}),
+      ...(input.nextBillingDate !== undefined ? { nextBillingDate: input.nextBillingDate } : {}),
       ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {}),
       ...(input.canceledAt !== undefined ? { canceledAt: input.canceledAt } : {}),
     },
@@ -232,9 +227,7 @@ export async function updateSubscriptionStatus(input: {
     data: {
       subscriptionStatus: input.status,
       ...(promote && input.planCode ? { planType: input.planCode as never } : {}),
-      ...(input.stripeSubscriptionId
-        ? { stripeSubscriptionId: input.stripeSubscriptionId }
-        : {}),
+      ...(input.stripeSubscriptionId ? { stripeSubscriptionId: input.stripeSubscriptionId } : {}),
     },
   });
 
@@ -242,8 +235,7 @@ export async function updateSubscriptionStatus(input: {
     companyId: input.companyId,
     action: input.logAction ?? "SUBSCRIPTION_RENEWED",
     status: input.status.toLowerCase(),
-    description:
-      input.description ?? `Status da assinatura alterado para ${input.status}`,
+    description: input.description ?? `Status da assinatura alterado para ${input.status}`,
     userId: input.userId,
   });
 }

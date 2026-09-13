@@ -72,13 +72,14 @@ export async function validateFileAccess(
   return { allowed: true, record: upload };
 }
 
-export function generateFileToken(uploadId: string, companyId: string, expiresInMs = 3600000): string {
+export function generateFileToken(
+  uploadId: string,
+  companyId: string,
+  expiresInMs = 3600000
+): string {
   const expiresAt = Date.now() + expiresInMs;
   const payload = `${uploadId}:${companyId}:${expiresAt}`;
-  const signature = crypto
-    .createHmac("sha256", getSignedUrlSecret())
-    .update(payload)
-    .digest("hex");
+  const signature = crypto.createHmac("sha256", getSignedUrlSecret()).update(payload).digest("hex");
 
   return Buffer.from(`${payload}:${signature}`).toString("base64url");
 }

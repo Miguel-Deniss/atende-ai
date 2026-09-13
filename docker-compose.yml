@@ -1,61 +1,75 @@
-version: "3.8"
-
 services:
   postgres:
-    image: postgres:16-alpine
-    container_name: atendeai-db
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: atendeai
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-atendeai_secret}
+      POSTGRES_USER: atendeai_migrator
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: atendeai
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:?RUNTIME_DB_PASSWORD is required}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/docker-init-db.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U atendeai"]
+      test: ["CMD-SHELL", "pg_isready -U atendeai_migrator -d atendeai"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  app:
+  migrate:
+    image: ${MIGRATOR_IMAGE:-atendeai-migrator:local}
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: atendeai-app
+      target: migrator
+    environment:
+      DATABASE_URL: ${DIRECT_URL:-postgresql://atendeai_migrator:${POSTGRES_PASSWORD}@postgres:5432/atendeai?schema=public}
+      DIRECT_URL: ${DIRECT_URL:-postgresql://atendeai_migrator:${POSTGRES_PASSWORD}@postgres:5432/atendeai?schema=public}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    image: ${APP_IMAGE:-atendeai:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://atendeai:${POSTGRES_PASSWORD:-atendeai_secret}@postgres:5432/atendeai?schema=public
+      DATABASE_URL: ${DATABASE_URL:-postgresql://atendeai_runtime:${RUNTIME_DB_PASSWORD}@postgres:5432/atendeai?schema=public}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
       SESSION_SECRET: ${SESSION_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
       STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY}
-      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY}
-      WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
-      SMTP_FROM: ${SMTP_FROM}
+      META_APP_ID: ${META_APP_ID}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
       APP_URL: ${APP_URL}
-      UPLOAD_DIR: /app/uploads
+      SIGNED_URL_SECRET: ${SIGNED_URL_SECRET}
+      CRON_SECRET: ${CRON_SECRET}
+      HEALTHCHECK_SECRET: ${HEALTHCHECK_SECRET}
+      RATE_LIMIT_STORE: database
+      UPLOAD_DIR: /app/data/uploads
       MAX_UPLOAD_SIZE: 5242880
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
-      - uploads_data:/app/uploads
+      - uploads_data:/app/data/uploads
 
 volumes:
   postgres_data:

@@ -47,7 +47,10 @@ interface BillingEntry {
   createdAt: string;
 }
 
-const STATUS_LABEL: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
+const STATUS_LABEL: Record<
+  string,
+  { label: string; variant: "success" | "warning" | "destructive" | "secondary" }
+> = {
   ACTIVE: { label: "Ativo", variant: "success" },
   TRIALING: { label: "Período de teste", variant: "warning" },
   PAST_DUE: { label: "Pagamento pendente", variant: "destructive" },
@@ -137,9 +140,11 @@ export default function SubscriptionPage() {
         await loadData();
         // Remove checkout parameter from URL to prevent duplicate processing
         const params = new URLSearchParams(searchParams);
-        params.delete('checkout');
+        params.delete("checkout");
         const queryString = params.toString();
-        const url = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+        const url = queryString
+          ? `${window.location.pathname}?${queryString}`
+          : window.location.pathname;
         router.replace(url, { scroll: false });
       })();
     } else if (status === "cancel") {
@@ -148,13 +153,15 @@ export default function SubscriptionPage() {
         await loadData();
         // Remove checkout parameter from URL to prevent duplicate processing
         const params = new URLSearchParams(searchParams);
-        params.delete('checkout');
+        params.delete("checkout");
         const queryString = params.toString();
-        const url = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+        const url = queryString
+          ? `${window.location.pathname}?${queryString}`
+          : window.location.pathname;
         router.replace(url, { scroll: false });
       })();
     }
-  }, [searchParams, router]);
+  }, [loadData, router, searchParams, toast]);
 
   const validateCoupon = async () => {
     if (!couponCode.trim() || !selectedPlan) return;
@@ -228,7 +235,12 @@ export default function SubscriptionPage() {
   };
 
   const handleCancel = async () => {
-    if (!window.confirm("Deseja cancelar sua assinatura? O acesso continuará até o fim do ciclo atual.")) return;
+    if (
+      !window.confirm(
+        "Deseja cancelar sua assinatura? O acesso continuará até o fim do ciclo atual."
+      )
+    )
+      return;
 
     setProcessing(true);
     try {
@@ -263,13 +275,21 @@ export default function SubscriptionPage() {
 
   return (
     <div className="space-y-8">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <h1 className="text-2xl font-bold text-white mb-1">Minha assinatura</h1>
         <p className="text-gray-500 text-sm">Gerencie seu plano, pagamentos e cobranças.</p>
       </motion.div>
 
       {subscription?.status === "PAST_DUE" && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.05 }}
+        >
           <div className="flex items-start gap-3 p-4 rounded-xl border border-red-500/30 bg-red-500/10">
             <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div>
@@ -282,7 +302,11 @@ export default function SubscriptionPage() {
         </motion.div>
       )}
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+      >
         <Card className="bg-card/50 border-border/50 max-w-2xl">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -304,20 +328,29 @@ export default function SubscriptionPage() {
             <div className="grid sm:grid-cols-2 gap-4 mb-6 text-sm">
               <div className="p-3 rounded-lg bg-secondary/30 border border-border/30">
                 <p className="text-gray-500 text-xs mb-1">Próxima cobrança</p>
-                <p className="text-white font-medium">{formatDate(subscription?.nextBillingDate)}</p>
+                <p className="text-white font-medium">
+                  {formatDate(subscription?.nextBillingDate)}
+                </p>
               </div>
               <div className="p-3 rounded-lg bg-secondary/30 border border-border/30">
                 <p className="text-gray-500 text-xs mb-1">
                   {subscription?.status === "TRIALING" ? "Fim do teste" : "Início do plano"}
                 </p>
                 <p className="text-white font-medium">
-                  {formatDate(subscription?.status === "TRIALING" ? subscription?.trialEndsAt : subscription?.createdAt)}
+                  {formatDate(
+                    subscription?.status === "TRIALING"
+                      ? subscription?.trialEndsAt
+                      : subscription?.createdAt
+                  )}
                 </p>
               </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-2 mb-6">
-              {(subscription?.features?.length ? subscription.features : ["Sem recursos disponíveis"]).map((feature) => (
+              {(subscription?.features?.length
+                ? subscription.features
+                : ["Sem recursos disponíveis"]
+              ).map((feature) => (
                 <div key={feature} className="flex items-center gap-2 text-sm text-gray-300">
                   <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                   {getFeatureLabel(feature)}
@@ -327,11 +360,21 @@ export default function SubscriptionPage() {
 
             {isPaid && (
               <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={handleOpenPortal} disabled={processing}>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleOpenPortal}
+                  disabled={processing}
+                >
                   <CreditCard className="w-4 h-4 mr-2" />
                   Gerenciar pagamento
                 </Button>
-                <Button variant="outline" className="flex-1" onClick={handleCancel} disabled={processing}>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleCancel}
+                  disabled={processing}
+                >
                   Cancelar assinatura
                 </Button>
               </div>
@@ -340,48 +383,71 @@ export default function SubscriptionPage() {
         </Card>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
         <h2 className="text-lg font-semibold text-white mb-4">Planos disponíveis</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {plans.filter((p) => p.code !== "FREE").map((plan) => {
-            const isCurrent = plan.code === subscription?.planType;
-            return (
-              <Card key={plan.id}
-                className={`bg-card/50 border-border/50 transition-all duration-300 ${isCurrent ? "border-blue-500/50 ring-1 ring-blue-500/20" : "hover:border-blue-500/30 cursor-pointer"}`}
-                onClick={() => !isCurrent && setSelectedPlan(plan)}>
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-bold text-white mb-1">{plan.name}</h3>
-                  <p className="text-2xl font-bold text-white mb-4">
-                    {formatBRL(plan.price)}
-                    <span className="text-sm font-normal text-gray-500">/mês</span>
-                  </p>
-                  <ul className="text-left space-y-2 mb-6">
-                    {(plan.features ?? []).slice(0, 4).map((f) => (
-                      <li key={f} className="flex items-center gap-2 text-xs text-gray-400">
-                        <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-                        {getFeatureLabel(f)}
-                      </li>
-                    ))}
-                    {(plan.features ?? []).length > 4 && (
-                      <li className="text-xs text-gray-600">+{plan.features.length - 4} mais recursos</li>
+          {plans
+            .filter((p) => p.code !== "FREE")
+            .map((plan) => {
+              const isCurrent = plan.code === subscription?.planType;
+              return (
+                <Card
+                  key={plan.id}
+                  className={`bg-card/50 border-border/50 transition-all duration-300 ${isCurrent ? "border-blue-500/50 ring-1 ring-blue-500/20" : "hover:border-blue-500/30 cursor-pointer"}`}
+                  onClick={() => !isCurrent && setSelectedPlan(plan)}
+                >
+                  <CardContent className="p-6">
+                    <h3 className="text-lg font-bold text-white mb-1">{plan.name}</h3>
+                    <p className="text-2xl font-bold text-white mb-4">
+                      {formatBRL(plan.price)}
+                      <span className="text-sm font-normal text-gray-500">/mês</span>
+                    </p>
+                    <ul className="text-left space-y-2 mb-6">
+                      {(plan.features ?? []).slice(0, 4).map((f) => (
+                        <li key={f} className="flex items-center gap-2 text-xs text-gray-400">
+                          <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                          {getFeatureLabel(f)}
+                        </li>
+                      ))}
+                      {(plan.features ?? []).length > 4 && (
+                        <li className="text-xs text-gray-600">
+                          +{plan.features.length - 4} mais recursos
+                        </li>
+                      )}
+                    </ul>
+                    {isCurrent ? (
+                      <Badge variant="success" className="w-full justify-center">
+                        Plano atual
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="default"
+                        className="w-full"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPlan(plan);
+                        }}
+                      >
+                        Assinar {plan.name} <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
                     )}
-                  </ul>
-                  {isCurrent ? (
-                    <Badge variant="success" className="w-full justify-center">Plano atual</Badge>
-                  ) : (
-                    <Button variant="default" className="w-full" onClick={(e) => { e.stopPropagation(); setSelectedPlan(plan); }}>
-                      Assinar {plan.name} <ArrowRight className="w-3 h-3 ml-1" />
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                  </CardContent>
+                </Card>
+              );
+            })}
         </div>
       </motion.div>
 
       {history.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
           <Card className="bg-card/50 border-border/50 max-w-2xl">
             <CardHeader>
               <CardTitle className="text-base text-white">Histórico de cobranças</CardTitle>
@@ -389,14 +455,18 @@ export default function SubscriptionPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {history.map((entry) => (
-                <div key={entry.id} className="flex items-center justify-between text-sm py-2 border-b border-border/30 last:border-0">
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between text-sm py-2 border-b border-border/30 last:border-0"
+                >
                   <div>
                     <p className="text-white font-medium">{entry.description ?? entry.action}</p>
                     <p className="text-xs text-gray-500">{formatDate(entry.createdAt)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-white font-medium">
-                      {entry.action === "PAYMENT_SUCCESS" ? "+" : "−"}{formatBRL(entry.amount)}
+                      {entry.action === "PAYMENT_SUCCESS" ? "+" : "−"}
+                      {formatBRL(entry.amount)}
                     </p>
                     <p className="text-xs text-gray-500 capitalize">{entry.status}</p>
                   </div>
@@ -409,7 +479,11 @@ export default function SubscriptionPage() {
 
       <Modal
         open={selectedPlan !== null}
-        onClose={() => { setSelectedPlan(null); setCouponCode(""); setCouponInfo(null); }}
+        onClose={() => {
+          setSelectedPlan(null);
+          setCouponCode("");
+          setCouponInfo(null);
+        }}
         title={`Assinar ${selectedPlan?.name ?? ""}`}
       >
         {selectedPlan && (
@@ -436,7 +510,12 @@ export default function SubscriptionPage() {
                   placeholder="CUPOM10"
                   className="uppercase"
                 />
-                <Button type="button" variant="outline" onClick={validateCoupon} disabled={!couponCode.trim()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={validateCoupon}
+                  disabled={!couponCode.trim()}
+                >
                   Aplicar
                 </Button>
               </div>
@@ -451,7 +530,11 @@ export default function SubscriptionPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => { setSelectedPlan(null); setCouponCode(""); setCouponInfo(null); }}
+                onClick={() => {
+                  setSelectedPlan(null);
+                  setCouponCode("");
+                  setCouponInfo(null);
+                }}
                 disabled={processing}
               >
                 Cancelar

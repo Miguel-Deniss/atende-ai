@@ -22,10 +22,7 @@ export async function validateCsrfToken(token: string): Promise<boolean> {
   try {
     const cookieStore = await cookies();
     const cookieToken = cookieStore.get(CSRF_COOKIE_NAME)?.value;
-    return !!cookieToken && crypto.timingSafeEqual(
-      Buffer.from(token),
-      Buffer.from(cookieToken)
-    );
+    return !!cookieToken && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(cookieToken));
   } catch {
     return false;
   }

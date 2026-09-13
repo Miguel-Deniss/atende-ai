@@ -1,11 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requirePermission } from "@/lib/auth/api-guard";
-import {
-  successResponse,
-  errorResponse,
-  notFoundResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse, notFoundResponse } from "@/lib/auth/api-response";
+import { conversationPatchSchema } from "@/lib/validators/auth";
+import { normalizeBrazilianPhone } from "@/lib/clients/phone";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -26,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             createdAt: "asc",
           },
         },
-      
+
         client: {
           select: {
             id: true,
@@ -53,28 +51,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     if (!conversation.clientId) {
-
-      let client = await prisma.client.findFirst({
-        where: {
-          phone: conversation.phone,
+      const phone = normalizeBrazilianPhone(conversation.phone);
+      const client = await prisma.client.upsert({
+        where: { companyId_phone: { companyId: user.companyId, phone } },
+        update: { deletedAt: null },
+        create: {
+          phone,
+          name: conversation.name ?? "Cliente sem nome",
           companyId: user.companyId,
         },
       });
-    
-    
-      if (!client) {
-    
-        client = await prisma.client.create({
-          data: {
-            phone: conversation.phone,
-            name: conversation.name ?? "Cliente sem nome",
-            companyId: user.companyId,
-          },
-        });
-    
-      }
-    
-    
+
       await prisma.conversation.update({
         where: {
           id: conversation.id,
@@ -83,7 +70,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           clientId: client.id,
         },
       });
-    
     }
 
     return successResponse(conversation);
@@ -112,13 +98,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return notFoundResponse("Conversa não encontrada");
     }
 
-    const body = await request.json();
+    const parsed = conversationPatchSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return errorResponse(
+        "Campos de atualização inválidos",
+        400,
+        parsed.error.flatten().fieldErrors
+      );
+    }
 
     const updated = await prisma.conversation.update({
       where: {
         id,
       },
-      data: body,
+      data: parsed.data,
     });
 
     return successResponse(updated);

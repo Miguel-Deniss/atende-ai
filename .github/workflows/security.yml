@@ -28,11 +28,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: npm ci
       - name: Run audit
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high
 
   trivy-scan:
     name: Trivy Scan
@@ -47,7 +47,7 @@ jobs:
           format: "sarif"
           output: "trivy-results.sarif"
           severity: "HIGH,CRITICAL"
-          exit-code: "0"
+          exit-code: "1"
       - name: Upload Trivy results
         uses: github/codeql-action/upload-sarif@v3
         with:

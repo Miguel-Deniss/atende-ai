@@ -1,9 +1,5 @@
 import { listFAQ, listServices } from "./format";
-import type {
-  AIMessage,
-  CompanyContext,
-  ConversationState,
-} from "./types";
+import type { AIMessage, CompanyContext, ConversationState } from "./types";
 
 export interface PromptBuildInput {
   state: ConversationState;
@@ -29,12 +25,17 @@ function appointmentObjective(state: ConversationState): string {
       );
     case "waiting_date":
       return (
-        "O cliente quer agendar " + service + ". Ainda falta a DATA. " +
+        "O cliente quer agendar " +
+        service +
+        ". Ainda falta a DATA. " +
         "Pergunte SOMENTE qual dia ele prefere. NAO repita os servicos. NAO reinicie o atendimento."
       );
     case "waiting_time":
       return (
-        "O cliente quer agendar " + service + (s.date ? " para " + s.date : "") + ". " +
+        "O cliente quer agendar " +
+        service +
+        (s.date ? " para " + s.date : "") +
+        ". " +
         "Ainda falta o HORARIO. Pergunte SOMENTE o horario. NAO repita os servicos. NAO reinicie o atendimento."
       );
     case "waiting_name":
@@ -45,9 +46,12 @@ function appointmentObjective(state: ConversationState): string {
     case "confirming":
       return (
         "Confirme com o cliente os dados do agendamento: " +
-        "servico " + service +
-        ", data " + (s.date ?? "nao informada") +
-        ", horario " + (s.time ?? "nao informado") +
+        "servico " +
+        service +
+        ", data " +
+        (s.date ?? "nao informada") +
+        ", horario " +
+        (s.time ?? "nao informado") +
         ". Pergunte se o cliente CONFIRMA o agendamento. Se ele pedir mudanca, ajuste."
       );
     case "finished":
@@ -60,17 +64,12 @@ function appointmentObjective(state: ConversationState): string {
   }
 }
 
-export function objectiveFor(
-  state: ConversationState,
-  _company: CompanyContext
-): string {
+export function objectiveFor(state: ConversationState, company: CompanyContext): string {
   switch (state.intent) {
     case "appointment":
       return appointmentObjective(state);
     case "human":
-      return (
-        "O cliente quer falar com um humano. Diga que vai transferir para um atendente humano."
-      );
+      return `O cliente quer falar com um humano. Diga que vai transferir para um atendente humano da ${company.name}.`;
     case "service":
       return (
         "O cliente quer informacoes sobre servicos ou precos. " +
@@ -129,11 +128,15 @@ export function buildPrompt(input: PromptBuildInput): BuiltPrompt {
   lines.push("Horario: " + (s.time ?? "nao informado"));
   lines.push("Nome: " + (s.name ?? "nao informado"));
   lines.push("");
-  lines.push("OBJETIVO ATUAL (execute exatamente isso; prevalece sobre o historico em caso de conflito):");
+  lines.push(
+    "OBJETIVO ATUAL (execute exatamente isso; prevalece sobre o historico em caso de conflito):"
+  );
   lines.push(objectiveFor(state, company));
   lines.push("");
   lines.push("REGRAS:");
-  lines.push("- NUNCA invente servicos, precos, funcionarios, endereco ou horario de funcionamento.");
+  lines.push(
+    "- NUNCA invente servicos, precos, funcionarios, endereco ou horario de funcionamento."
+  );
   lines.push("- NAO confirme disponibilidade de horario.");
   lines.push("- O OBJETIVO ATUAL prevalece sobre qualquer coisa dita antes na conversa.");
 

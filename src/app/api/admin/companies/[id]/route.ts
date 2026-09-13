@@ -99,21 +99,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
 
     if (updateData.status === "SUSPENDED") {
-      await prisma.user.updateMany({
-        where: { companyId: id, isActive: true },
-        data: { isActive: false },
-      });
-
       await prisma.session.updateMany({
         where: { user: { companyId: id }, isRevoked: false },
         data: { isRevoked: true },
-      });
-    }
-
-    if (updateData.status === "ACTIVE") {
-      await prisma.user.updateMany({
-        where: { companyId: id },
-        data: { isActive: true },
       });
     }
 
@@ -123,7 +111,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const { user, response } = await requireRole(["SUPER_ADMIN"]);
     if (response) return response;

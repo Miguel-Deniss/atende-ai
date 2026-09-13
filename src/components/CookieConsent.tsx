@@ -42,14 +42,17 @@ export function CookieConsent() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-gray-300">
-                Utilizamos cookies essenciais para o funcionamento da plataforma.
-                Ao continuar, você concorda com nossa{" "}
+                Utilizamos cookies essenciais para o funcionamento da plataforma. Ao continuar, você
+                concorda com nossa{" "}
                 <Link href="/privacy" className="text-blue-400 hover:underline">
                   Política de Privacidade
-                </Link>.
+                </Link>
+                .
               </p>
               <div className="flex gap-2 mt-3">
-                <Button size="sm" onClick={accept}>Aceitar</Button>
+                <Button size="sm" onClick={accept}>
+                  Aceitar
+                </Button>
                 <Button size="sm" variant="ghost" onClick={reject} className="text-gray-400">
                   Recusar
                 </Button>

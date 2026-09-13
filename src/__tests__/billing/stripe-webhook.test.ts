@@ -13,6 +13,7 @@ vi.mock("@/lib/db/prisma", () => ({
       update: vi.fn(),
     },
     subscription: {
+      findUnique: vi.fn(),
       updateMany: vi.fn(),
       upsert: vi.fn(),
     },
@@ -71,6 +72,7 @@ beforeEach(() => {
     id: "we_new",
     status: "received",
   });
+  (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 });
 
 describe("processStripeEvent", () => {
@@ -149,6 +151,30 @@ describe("processStripeEvent", () => {
     });
 
     expect(result).toBe("skipped");
+  });
+
+  it("ignora atualização Stripe mais antiga que o último evento aplicado", async () => {
+    (prisma.company.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "c1",
+      planType: "PRO",
+      stripeSubscriptionId: "sub_stripe_1",
+    });
+    (prisma.subscription.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+      lastStripeEventAt: new Date("2026-09-12T12:00:00.000Z"),
+    });
+
+    const result = await processStripeEvent({
+      id: "evt_old",
+      type: "customer.subscription.updated",
+      created: Math.floor(new Date("2026-09-12T11:00:00.000Z").getTime() / 1000),
+      data: {
+        object: { id: "sub_stripe_1", status: "past_due" },
+      },
+    });
+
+    expect(result).toBe("processed");
+    expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+    expect(prisma.company.update).not.toHaveBeenCalled();
   });
 
   it("não promove planType quando subscription.updated vem como INCOMPLETE", async () => {

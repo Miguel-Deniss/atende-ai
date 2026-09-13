@@ -11,7 +11,6 @@ export async function GET() {
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
 
     const whereCompany = { companyId: user.companyId, deletedAt: null };
 
@@ -25,7 +24,6 @@ export async function GET() {
       outgoingToday,
       totalAppointments,
       appointmentsToday,
-      appointmentsWeek,
       unreadConversations,
       openConversations,
     ] = await Promise.all([
@@ -55,13 +53,10 @@ export async function GET() {
       }),
       prisma.appointment.count({ where: whereCompany }),
       prisma.appointment.count({
-        where: { companyId: user.companyId, deletedAt: null, date: { gte: todayStart, lte: todayEnd } },
-      }),
-      prisma.appointment.count({
         where: {
           companyId: user.companyId,
           deletedAt: null,
-          date: { gte: yesterdayStart, lte: todayEnd },
+          date: { gte: todayStart, lte: todayEnd },
         },
       }),
       prisma.conversation.count({ where: { ...whereCompany, unread: true } }),

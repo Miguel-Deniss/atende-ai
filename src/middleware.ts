@@ -9,15 +9,17 @@ const PUBLIC_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/verify-email",
-  "/api/test-supabase",
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
   "/api/auth/verify-email",
+  "/api/auth/resend-verification",
   "/api/webhooks/stripe",
   "/api/webhooks/whatsapp",
   "/api/cron/reminders",
+  "/api/cron/webhooks",
+  "/api/cron/retention",
   "/api/health",
   "/api/public",
   "/b",
@@ -49,24 +51,6 @@ export async function middleware(request: NextRequest) {
 
   const response = NextResponse.next();
 
-  const securityHeaders = {
-    "X-Frame-Options": "DENY",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "X-XSS-Protection": "1; mode=block",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
-    "Cross-Origin-Resource-Policy": "same-origin",
-    "Cross-Origin-Embedder-Policy": "require-corp",
-    "Cross-Origin-Opener-Policy": "same-origin",
-    "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
-    "Content-Security-Policy":
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; form-action 'self'",
-  };
-
-  for (const [key, value] of Object.entries(securityHeaders)) {
-    response.headers.set(key, value);
-  }
-
   const isPublicPath = PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(path + "/")
   );
@@ -83,7 +67,9 @@ export async function middleware(request: NextRequest) {
     const hasSession = accessToken || refreshToken || sessionToken;
 
     if (!hasSession) {
-      return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
+      return NextResponse.redirect(
+        new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url)
+      );
     }
   }
 
@@ -95,7 +81,9 @@ export async function middleware(request: NextRequest) {
     const hasSession = accessToken || refreshToken || sessionToken;
 
     if (!hasSession) {
-      return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
+      return NextResponse.redirect(
+        new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url)
+      );
     }
 
     if (accessToken) {
@@ -112,6 +100,16 @@ export async function middleware(request: NextRequest) {
     const isAuthPath = AUTH_API_PATHS.some((path) => pathname.startsWith(path));
 
     if (isAuthPath) return response;
+
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+      const origin = request.headers.get("origin");
+      if (!origin || origin !== request.nextUrl.origin) {
+        return NextResponse.json(
+          { success: false, error: "Origem da requisicao nao autorizada" },
+          { status: 403 }
+        );
+      }
+    }
 
     const sessionToken = request.cookies.get("session_token")?.value;
     const accessToken = request.cookies.get("access_token")?.value;

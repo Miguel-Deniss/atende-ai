@@ -1,10 +1,9 @@
-import { NextRequest } from "next/server";
 import { requirePermission } from "@/lib/auth/api-guard";
 import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { createBillingPortalSession, isStripeConfigured } from "@/lib/billing/stripe";
 import { prisma } from "@/lib/db/prisma";
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const { user, response } = await requirePermission("company:manage_billing");
     if (response) return response;

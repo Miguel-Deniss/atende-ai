@@ -66,7 +66,14 @@ export function EmailLayout({ preview, title, children }: EmailLayoutProps) {
               />
             </Column>
             <Column align="right">
-              <Text style={{ color: "#3B82F6", fontSize: "20px", fontWeight: 700, margin: "0 0 24px 0" }}>
+              <Text
+                style={{
+                  color: "#3B82F6",
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  margin: "0 0 24px 0",
+                }}
+              >
                 Atende<span style={{ color: "#60A5FA" }}>AI</span>
               </Text>
             </Column>
@@ -83,11 +90,17 @@ export function EmailLayout({ preview, title, children }: EmailLayoutProps) {
           <Hr style={{ borderColor: "#1E293B", margin: "32px 0 24px 0" }} />
 
           <Text style={footer}>
-            <Link href={`${BASE_URL}/privacy`} style={{ color: "#64748B", textDecoration: "underline" }}>
+            <Link
+              href={`${BASE_URL}/privacy`}
+              style={{ color: "#64748B", textDecoration: "underline" }}
+            >
               Política de Privacidade
             </Link>{" "}
             •{" "}
-            <Link href={`${BASE_URL}/terms`} style={{ color: "#64748B", textDecoration: "underline" }}>
+            <Link
+              href={`${BASE_URL}/terms`}
+              style={{ color: "#64748B", textDecoration: "underline" }}
+            >
               Termos de Uso
             </Link>
           </Text>

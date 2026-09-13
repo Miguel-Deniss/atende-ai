@@ -20,8 +20,7 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   ERROR: 3,
 };
 
-const currentLevel: LogLevel =
-  process.env.NODE_ENV === "production" ? "INFO" : "DEBUG";
+const currentLevel: LogLevel = process.env.NODE_ENV === "production" ? "INFO" : "DEBUG";
 
 function shouldLog(level: LogLevel): boolean {
   return LOG_LEVELS[level] >= LOG_LEVELS[currentLevel];
@@ -46,11 +45,7 @@ function formatLog(entry: LogEntry): string {
   return JSON.stringify(enriched);
 }
 
-function createEntry(
-  level: LogLevel,
-  message: string,
-  meta?: Partial<LogEntry>
-): LogEntry {
+function createEntry(level: LogLevel, message: string, meta?: Partial<LogEntry>): LogEntry {
   return {
     level,
     message,

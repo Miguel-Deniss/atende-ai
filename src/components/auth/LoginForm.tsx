@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, AlertTriangle, ShieldAlert, CreditCard, ArrowLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,10 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ next }: LoginFormProps) {
-  const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [totpCode, setTotpCode] = useState("");
@@ -34,6 +34,9 @@ export function LoginForm({ next }: LoginFormProps) {
   const [useRecovery, setUseRecovery] = useState(false);
   const [blocked, setBlocked] = useState<BlockState>(null);
   const [emailError, setEmailError] = useState("");
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
 
   const getNext = useCallback((): string => {
     if (next && next.startsWith("/") && !next.startsWith("//")) {
@@ -62,6 +65,8 @@ export function LoginForm({ next }: LoginFormProps) {
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setEmailNotVerified(false);
+    setResendMessage("");
 
     if (!validateEmail(email)) return;
     if (!password) {
@@ -86,6 +91,9 @@ export function LoginForm({ next }: LoginFormProps) {
       setBlocked("ACCOUNT_DISABLED");
       return;
     }
+    if (result.code === "EMAIL_NOT_VERIFIED") {
+      setEmailNotVerified(true);
+    }
 
     if (result.success) {
       window.location.href = getNext();
@@ -93,6 +101,25 @@ export function LoginForm({ next }: LoginFormProps) {
     }
 
     setError(result.error || "Email ou senha inválidos.");
+  };
+
+  const resendVerification = async () => {
+    if (!validateEmail(email)) return;
+    setResending(true);
+    setResendMessage("");
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const body = await response.json();
+      setResendMessage(body.data?.message || body.error || "Não foi possível reenviar agora.");
+    } catch {
+      setResendMessage("Não foi possível reenviar agora.");
+    } finally {
+      setResending(false);
+    }
   };
 
   const handleTwoFactorSubmit = async (e: React.FormEvent) => {
@@ -146,8 +173,8 @@ export function LoginForm({ next }: LoginFormProps) {
           </div>
           <h2 className="text-xl font-bold text-white mb-2">Assinatura suspensa</h2>
           <p className="text-sm text-gray-400 mb-8 max-w-sm mx-auto">
-            Sua assinatura encontra-se suspensa. Para continuar usando o AtendeAI,
-            regularize o pagamento.
+            Sua assinatura encontra-se suspensa. Para continuar usando o AtendeAI, regularize o
+            pagamento.
           </p>
           <Link href="/#planos">
             <Button className="w-full" size="lg">
@@ -276,10 +303,35 @@ export function LoginForm({ next }: LoginFormProps) {
             Faça login para acessar sua empresa.
           </p>
 
+          {searchParams.get("registered") === "1" && (
+            <div
+              className="p-3 mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm text-emerald-300"
+              role="status"
+            >
+              Conta criada. Enviamos um link de confirmação válido por 24 horas.
+            </div>
+          )}
+
           {error && (
-            <div className="flex items-start gap-2 p-3 mb-4 rounded-xl border border-red-500/30 bg-red-500/10 text-sm text-red-400">
+            <div
+              className="flex items-start gap-2 p-3 mb-4 rounded-xl border border-red-500/30 bg-red-500/10 text-sm text-red-400"
+              role="alert"
+            >
               <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              {error}
+              <div>
+                <p>{error}</p>
+                {emailNotVerified && (
+                  <button
+                    type="button"
+                    className="mt-2 text-blue-300 underline underline-offset-4 disabled:opacity-50"
+                    onClick={resendVerification}
+                    disabled={resending}
+                  >
+                    {resending ? "Reenviando…" : "Reenviar confirmação"}
+                  </button>
+                )}
+                {resendMessage && <p className="mt-2 text-gray-300">{resendMessage}</p>}
+              </div>
             </div>
           )}
 

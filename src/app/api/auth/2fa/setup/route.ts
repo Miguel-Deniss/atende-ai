@@ -34,9 +34,7 @@ export async function POST() {
       userId: user.id,
     });
 
-    const qrCodeDataUrl = secret.otpauth_url
-      ? await generateQrDataUrl(secret.otpauth_url)
-      : null;
+    const qrCodeDataUrl = secret.otpauth_url ? await generateQrDataUrl(secret.otpauth_url) : null;
 
     return successResponse({
       secret: secret.base32,

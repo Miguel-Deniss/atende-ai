@@ -47,7 +47,7 @@ describe("Rate Limit", () => {
       await checkLoginRateLimit(key);
     }
 
-    let blocked = await checkLoginRateLimit(key);
+    const blocked = await checkLoginRateLimit(key);
     expect(blocked.allowed).toBe(false);
 
     await resetLoginAttempts(key);

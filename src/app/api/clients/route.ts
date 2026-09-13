@@ -5,6 +5,9 @@ import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { clientSchema, paginationSchema } from "@/lib/validators/auth";
 import { createLog } from "@/lib/logger";
 import { checkDefaultRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
+import { normalizeBrazilianPhone } from "@/lib/clients/phone";
+import { Prisma } from "@prisma/client";
+import { checkClientLimit } from "@/lib/tenant/plan-limits";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,10 +17,10 @@ export async function GET(request: NextRequest) {
     const ip = request.headers.get("x-forwarded-for") || "unknown";
     const rateCheck = await checkDefaultRateLimit(`api:${user.companyId}:${ip}`);
     if (!rateCheck.allowed) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Muitas requisições" }),
-        { status: 429, headers: getRateLimitHeaders(rateCheck) }
-      );
+      return new Response(JSON.stringify({ success: false, error: "Muitas requisições" }), {
+        status: 429,
+        headers: getRateLimitHeaders(rateCheck),
+      });
     }
 
     const { searchParams } = new URL(request.url);
@@ -30,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     const { page, limit, search, status } = parsed.data!;
 
-    const where: Record<string, unknown> = {
+    const where: Prisma.ClientWhereInput = {
       companyId: user.companyId,
       deletedAt: null,
     };
@@ -49,12 +52,12 @@ export async function GET(request: NextRequest) {
 
     const [clients, total] = await Promise.all([
       prisma.client.findMany({
-        where: where as any,
+        where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: "desc" },
       }),
-      prisma.client.count({ where: where as any }),
+      prisma.client.count({ where }),
     ]);
 
     return successResponse({
@@ -83,9 +86,16 @@ export async function POST(request: NextRequest) {
       return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);
     }
 
+    const currentClients = await prisma.client.count({
+      where: { companyId: user.companyId, deletedAt: null },
+    });
+    const limit = checkClientLimit(currentClients, user.company.planType);
+    if (!limit.allowed) return errorResponse(limit.message, 403);
+
     const client = await prisma.client.create({
       data: {
         ...parsed.data,
+        phone: normalizeBrazilianPhone(parsed.data.phone),
         companyId: user.companyId,
         date: new Date(),
       },
@@ -101,7 +111,13 @@ export async function POST(request: NextRequest) {
     });
 
     return successResponse(client, 201);
-  } catch {
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse("Ja existe um cliente com este telefone", 409);
+    }
+    if (error instanceof Error && error.message === "Telefone invalido") {
+      return errorResponse("Telefone invalido", 400);
+    }
     return errorResponse("Erro interno do servidor", 500);
   }
 }

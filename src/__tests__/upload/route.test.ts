@@ -10,7 +10,7 @@ vi.mock("@/lib/rate-limit/with-rate-limit", () => ({
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
-  prisma: { upload: { create: vi.fn() } },
+  prisma: { upload: { create: vi.fn(), count: vi.fn(), aggregate: vi.fn() } },
 }));
 
 vi.mock("fs/promises", () => ({
@@ -45,13 +45,18 @@ function makeRequest(file?: File): any {
 }
 
 function makeFile(name: string, type = "application/pdf", size = 1024): File {
-  return new File([Buffer.alloc(size, 1)], name, { type });
+  const signature = name.toLowerCase().endsWith(".pdf")
+    ? Buffer.from("%PDF-1.7\n")
+    : Buffer.alloc(0);
+  return new File([signature, Buffer.alloc(Math.max(0, size - signature.length), 1)], name, {
+    type,
+  });
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requirePermission).mockResolvedValue({
-    user: { id: "u1", companyId: "c1" },
+    user: { id: "u1", companyId: "c1", company: { planType: "STARTER" } },
     response: null,
   } as never);
   vi.mocked(guardRateLimit).mockResolvedValue(null as never);
@@ -59,6 +64,8 @@ beforeEach(() => {
   vi.mocked(writeFile).mockResolvedValue(undefined as never);
   vi.mocked(unlink).mockResolvedValue(undefined as never);
   vi.mocked(prisma.upload.create).mockResolvedValue({ id: "up1" } as never);
+  vi.mocked(prisma.upload.count).mockResolvedValue(0);
+  vi.mocked(prisma.upload.aggregate).mockResolvedValue({ _sum: { size: 0 } } as never);
 });
 
 describe("POST /api/upload", () => {
@@ -67,7 +74,7 @@ describe("POST /api/upload", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(body.data.url).toMatch(/^\/uploads\/c1\//);
+    expect(body.data.url).toMatch(/^\/api\/files\/[0-9a-f-]{36}$/);
     expect(prisma.upload.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -118,7 +125,9 @@ describe("POST /api/upload", () => {
 
   it("deve retornar 429 quando o rate limit da empresa bloqueia", async () => {
     vi.mocked(guardRateLimit).mockResolvedValue(
-      new Response(JSON.stringify({ success: false, error: "Muitas requisições" }), { status: 429 }) as never
+      new Response(JSON.stringify({ success: false, error: "Muitas requisições" }), {
+        status: 429,
+      }) as never
     );
 
     const res = await POST(makeRequest(makeFile("doc.pdf")));
@@ -146,7 +155,9 @@ describe("POST /api/upload", () => {
   it("deve responder 401/403 quando sem permissão", async () => {
     vi.mocked(requirePermission).mockResolvedValue({
       user: null as never,
-      response: new Response(JSON.stringify({ success: false, error: "Não autorizado" }), { status: 401 }) as never,
+      response: new Response(JSON.stringify({ success: false, error: "Não autorizado" }), {
+        status: 401,
+      }) as never,
     });
     const res = await POST(makeRequest(makeFile("doc.pdf")));
     expect(res.status).toBe(401);

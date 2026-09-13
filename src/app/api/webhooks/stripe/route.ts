@@ -22,12 +22,8 @@ export async function POST(request: NextRequest) {
 
     try {
       const stripe = getStripeClient();
-      event = stripe.webhooks.constructEvent(
-        body,
-        signature,
-        process.env.STRIPE_WEBHOOK_SECRET!
-      );
-    } catch (err) {
+      event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!);
+    } catch {
       await logSystemEvent({
         action: "WEBHOOK_FAILED",
         entity: "webhook",

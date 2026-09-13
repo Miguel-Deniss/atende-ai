@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { hashPassword } from "@/lib/auth/password";
-import { setAuthCookies } from "@/lib/auth/session";
 import { registerSchema } from "@/lib/validators/auth";
-import { successResponse, errorResponse } from "@/lib/auth/api-response";
+import { successResponse, errorResponse, rateLimitResponse } from "@/lib/auth/api-response";
 import { createLog } from "@/lib/logger";
 import { generateToken } from "@/lib/security/encryption";
 import { sendVerificationEmail } from "@/lib/email";
 import { getAppUrl } from "@/lib/email/client";
+import { checkLoginRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,16 +15,17 @@ export async function POST(request: NextRequest) {
     const parsed = registerSchema.safeParse(body);
 
     if (!parsed.success) {
-      return errorResponse(
-        "Dados inválidos",
-        400,
-        parsed.error.flatten().fieldErrors
-      );
+      return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);
     }
 
     const { name, email, password, companyName, phone } = parsed.data;
     const ip = request.headers.get("x-forwarded-for") || "unknown";
     const userAgent = request.headers.get("user-agent") || undefined;
+    const rateCheck = await checkLoginRateLimit(`register:${ip}`);
+
+    if (!rateCheck.allowed) {
+      return rateLimitResponse();
+    }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -32,38 +33,43 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = await hashPassword(password);
-    const slug = companyName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") + "-" + Date.now().toString(36);
+    const slug =
+      companyName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") +
+      "-" +
+      Date.now().toString(36);
 
-    const company = await prisma.company.create({
-      data: {
-        name: companyName,
-        slug,
-        phone,
-        status: "ACTIVE",
-        subscriptionStatus: "TRIALING",
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        settings: {
-          create: {},
+    const verificationToken = generateToken();
+    const { company, user } = await prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({
+        data: {
+          name: companyName,
+          slug,
+          phone,
+          status: "ACTIVE",
+          subscriptionStatus: "TRIALING",
+          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          settings: { create: {} },
         },
-      },
-    });
+      });
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        role: "ADMIN",
-        companyId: company.id,
-        phone,
-        emailVerificationToken: generateToken(),
-      },
-    });
+      const user = await tx.user.create({
+        data: {
+          name,
+          email,
+          passwordHash,
+          role: "ADMIN",
+          companyId: company.id,
+          phone,
+          emailVerificationToken: verificationToken,
+          emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
 
-    await setAuthCookies(user.id, company.id, user.role, ip, userAgent);
+      return { company, user };
+    });
 
     await createLog({
       action: "REGISTER",
@@ -98,17 +104,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return successResponse({
-      user: {
-        id: user.id,
-        name: user.name,
+    const response = successResponse(
+      {
+        requiresEmailVerification: true,
         email: user.email,
-        role: user.role,
-        companyId: company.id,
-        companyName: company.name,
-        emailVerified: user.emailVerified,
       },
-    }, 201);
+      201
+    );
+    for (const [key, value] of Object.entries(getRateLimitHeaders(rateCheck))) {
+      response.headers.set(key, value);
+    }
+    return response;
   } catch (error) {
     console.error("Register error:", error);
     return errorResponse("Erro interno do servidor", 500);

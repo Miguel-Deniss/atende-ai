@@ -40,9 +40,7 @@ describe("extractService", () => {
   });
 
   it("deve preferir o nome mais longo (Corte Masculino sobre Corte)", () => {
-    expect(extractService("quero um corte masculino", services)).toBe(
-      "Corte Masculino"
-    );
+    expect(extractService("quero um corte masculino", services)).toBe("Corte Masculino");
   });
 
   it("deve ignorar acentos", () => {
@@ -155,11 +153,7 @@ describe("extractName", () => {
 
 describe("extractSlots", () => {
   it("deve extrair servico, data e horario juntos", () => {
-    const result = extractSlots(
-      "quero marcar uma barba para sábado às 9h",
-      state(),
-      company
-    );
+    const result = extractSlots("quero marcar uma barba para sábado às 9h", state(), company);
     expect(result.changed).toBe(true);
     expect(result.slots).toEqual({
       service: "Barba",

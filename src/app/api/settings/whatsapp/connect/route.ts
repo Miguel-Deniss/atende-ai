@@ -1,10 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requirePermission } from "@/lib/auth/api-guard";
-import {
-  successResponse,
-  errorResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { whatsAppConnectSchema } from "@/lib/validators/auth";
 import { encrypt } from "@/lib/security/encryption";
 import { hasFeature } from "@/lib/tenant/plan-limits";
@@ -22,25 +19,17 @@ export async function POST(request: NextRequest) {
     if (!company) return errorResponse("Empresa não encontrada", 404);
 
     if (!hasFeature(company.planType, "whatsapp")) {
-      return errorResponse(
-        "Seu plano não inclui a integração com WhatsApp. Faça upgrade.",
-        403
-      );
+      return errorResponse("Seu plano não inclui a integração com WhatsApp. Faça upgrade.", 403);
     }
 
     const body = await request.json();
     const parsed = whatsAppConnectSchema.safeParse(body);
 
     if (!parsed.success) {
-      return errorResponse(
-        "Dados inválidos",
-        400,
-        parsed.error.flatten().fieldErrors
-      );
+      return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);
     }
 
-    const { phoneNumberId, businessAccountId, accessToken, phoneNumber } =
-      parsed.data;
+    const { phoneNumberId, businessAccountId, accessToken, phoneNumber } = parsed.data;
 
     const config = await prisma.whatsAppConfig.upsert({
       where: { companyId: user.companyId },

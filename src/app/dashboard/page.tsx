@@ -60,7 +60,9 @@ export default function DashboardPage() {
   useEffect(() => {
     fetch("/api/dashboard/stats", { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => { if (d.success) setData(d.data); })
+      .then((d) => {
+        if (d.success) setData(d.data);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -80,13 +82,40 @@ export default function DashboardPage() {
     );
   }
 
-  const maxChartValue = Math.max(...data.chart.map((c) => Math.max(c.appointments, c.conversations)), 1);
+  const maxChartValue = Math.max(
+    ...data.chart.map((c) => Math.max(c.appointments, c.conversations)),
+    1
+  );
 
   const stats = [
-    { icon: Users, label: "Clientes", value: data.cards.totalClients.toLocaleString("pt-BR"), change: `+${data.cards.clientsThisMonth} este mês`, color: "from-blue-500 to-blue-400" },
-    { icon: MessageSquare, label: "Conversas Hoje", value: data.cards.conversationsToday.toLocaleString("pt-BR"), change: `${data.cards.unreadConversations} não lidas`, color: "from-violet-500 to-violet-400" },
-    { icon: Calendar, label: "Agendamentos Hoje", value: data.cards.appointmentsToday.toLocaleString("pt-BR"), change: `${data.cards.totalAppointments} no total`, color: "from-emerald-500 to-emerald-400" },
-    { icon: TrendingUp, label: "Taxa de Resposta", value: `${data.cards.responseRate}%`, change: `${data.cards.messagesToday} msg. hoje`, color: "from-amber-500 to-amber-400" },
+    {
+      icon: Users,
+      label: "Clientes",
+      value: data.cards.totalClients.toLocaleString("pt-BR"),
+      change: `+${data.cards.clientsThisMonth} este mês`,
+      color: "from-blue-500 to-blue-400",
+    },
+    {
+      icon: MessageSquare,
+      label: "Conversas Hoje",
+      value: data.cards.conversationsToday.toLocaleString("pt-BR"),
+      change: `${data.cards.unreadConversations} não lidas`,
+      color: "from-violet-500 to-violet-400",
+    },
+    {
+      icon: Calendar,
+      label: "Agendamentos Hoje",
+      value: data.cards.appointmentsToday.toLocaleString("pt-BR"),
+      change: `${data.cards.totalAppointments} no total`,
+      color: "from-emerald-500 to-emerald-400",
+    },
+    {
+      icon: TrendingUp,
+      label: "Taxa de Resposta",
+      value: `${data.cards.responseRate}%`,
+      change: `${data.cards.messagesToday} msg. hoje`,
+      color: "from-amber-500 to-amber-400",
+    },
   ];
 
   const formatRelative = (dateStr: string) => {
@@ -111,7 +140,9 @@ export default function DashboardPage() {
       >
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Dashboard</h1>
-          <p className="text-gray-500 text-sm">Bem-vindo de volta! Aqui está o resumo do seu negócio.</p>
+          <p className="text-gray-500 text-sm">
+            Bem-vindo de volta! Aqui está o resumo do seu negócio.
+          </p>
         </div>
         <Link href="/dashboard/reports">
           <Button variant="outline" size="sm">
@@ -127,7 +158,10 @@ export default function DashboardPage() {
         className="grid grid-cols-2 lg:grid-cols-4 gap-4"
       >
         {stats.map((stat) => (
-          <Card key={stat.label} className="bg-card/50 border-border/50 hover:border-blue-500/30 transition-all duration-300">
+          <Card
+            key={stat.label}
+            className="bg-card/50 border-border/50 hover:border-blue-500/30 transition-all duration-300"
+          >
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${stat.color} p-0.5`}>
@@ -157,7 +191,12 @@ export default function DashboardPage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base text-white">Conversas Recentes</CardTitle>
-                <Link href="/dashboard/conversations" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Ver todas</Link>
+                <Link
+                  href="/dashboard/conversations"
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  Ver todas
+                </Link>
               </div>
             </CardHeader>
             <CardContent>
@@ -177,12 +216,18 @@ export default function DashboardPage() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-white truncate">{conv.name}</p>
-                        <p className="text-xs text-gray-500 truncate max-w-[200px]">{conv.lastMessage || "Sem mensagens"}</p>
+                        <p className="text-xs text-gray-500 truncate max-w-[200px]">
+                          {conv.lastMessage || "Sem mensagens"}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-[10px] text-gray-500">{formatRelative(conv.lastMessageAt)}</span>
-                      <div className={`w-2 h-2 rounded-full ${conv.unread ? "bg-amber-400" : "bg-emerald-400"}`} />
+                      <span className="text-[10px] text-gray-500">
+                        {formatRelative(conv.lastMessageAt)}
+                      </span>
+                      <div
+                        className={`w-2 h-2 rounded-full ${conv.unread ? "bg-amber-400" : "bg-emerald-400"}`}
+                      />
                     </div>
                   </Link>
                 ))}
@@ -200,7 +245,12 @@ export default function DashboardPage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base text-white">Agenda de Hoje</CardTitle>
-                <Link href="/dashboard/schedule" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Ver todas</Link>
+                <Link
+                  href="/dashboard/schedule"
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  Ver todas
+                </Link>
               </div>
             </CardHeader>
             <CardContent>
@@ -215,7 +265,9 @@ export default function DashboardPage() {
                     className="flex items-center justify-between p-3 rounded-xl hover:bg-secondary/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 text-sm font-medium text-blue-400 text-center">{appt.time}</div>
+                      <div className="w-10 text-sm font-medium text-blue-400 text-center">
+                        {appt.time}
+                      </div>
                       <div>
                         <p className="text-sm font-medium text-white">{appt.name}</p>
                         <p className="text-xs text-gray-500">{appt.service}</p>
@@ -247,7 +299,10 @@ export default function DashboardPage() {
           <CardContent>
             <div className="flex items-end justify-between gap-3 px-2 h-48">
               {data.chart.map((item) => (
-                <div key={item.date} className="flex-1 flex flex-col items-center justify-end gap-2 h-full">
+                <div
+                  key={item.date}
+                  className="flex-1 flex flex-col items-center justify-end gap-2 h-full"
+                >
                   <div className="w-full flex flex-col justify-end flex-1 gap-1">
                     <div
                       className="w-full rounded-lg bg-gradient-to-t from-violet-500 to-violet-400 opacity-80"

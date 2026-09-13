@@ -36,9 +36,7 @@ describe("guardRateLimit", () => {
 
 describe("clientIp", () => {
   it("usa x-forwarded-for", () => {
-    expect(
-      clientIp(makeRequest({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" }))
-    ).toBe("1.2.3.4");
+    expect(clientIp(makeRequest({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" }))).toBe("1.2.3.4");
   });
 
   it("usa x-real-ip quando não há forwarded", () => {

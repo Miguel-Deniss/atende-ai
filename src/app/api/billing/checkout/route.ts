@@ -1,9 +1,6 @@
 import { NextRequest } from "next/server";
 import { requirePermission } from "@/lib/auth/api-guard";
-import {
-  successResponse,
-  errorResponse,
-} from "@/lib/auth/api-response";
+import { successResponse, errorResponse } from "@/lib/auth/api-response";
 import { checkoutSchema } from "@/lib/validators/auth";
 import { getPlanByCode } from "@/lib/billing/plans";
 import { validateCoupon, computeDiscount } from "@/lib/billing/coupons";
@@ -55,10 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     const missingPrices = getMissingStripePriceIds();
-    if (
-      missingPrices.length > 0 &&
-      missingPrices.includes(planCode)
-    ) {
+    if (missingPrices.length > 0 && missingPrices.includes(planCode)) {
       return errorResponse(
         `Checkout indisponível: falta configurar o Preço (Price ID) do plano ${planCode}.`,
         503
@@ -68,10 +62,7 @@ export async function POST(request: NextRequest) {
     let couponInfo: Awaited<ReturnType<typeof validateCoupon>>["coupon"];
 
     if (parsed.data.couponCode) {
-      const couponValidation = await validateCoupon(
-        parsed.data.couponCode,
-        plan.code
-      );
+      const couponValidation = await validateCoupon(parsed.data.couponCode, plan.code);
       if (!couponValidation.valid) {
         return errorResponse(couponValidation.reason ?? "Cupom inválido", 400);
       }
@@ -79,11 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     const discount = couponInfo
-      ? computeDiscount(
-          plan.price,
-          couponInfo.discountType,
-          couponInfo.discountValue
-        )
+      ? computeDiscount(plan.price, couponInfo.discountType, couponInfo.discountValue)
       : 0;
 
     const amount = Math.max(0, plan.price - discount);

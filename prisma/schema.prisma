@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Company {
@@ -52,7 +53,8 @@ model User {
   phone                  String?
   avatarUrl              String?
   emailVerified          Boolean        @default(false)
-  emailVerificationToken String?        @unique
+  emailVerificationToken   String?        @unique
+  emailVerificationExpires DateTime?
   resetPasswordToken     String?        @unique
   resetPasswordExpires   DateTime?
   twoFactorSecret        String?
@@ -110,19 +112,21 @@ model LoginAttempt {
 
   @@index([email, createdAt])
   @@index([ipAddress, createdAt])
+  @@index([userId])
   @@map("login_attempts")
 }
 
 model CompanySettings {
-  id                  String   @id @default(cuid())
-  autoTransfer        Boolean  @default(true)
-  autoReminders       Boolean  @default(true)
-  requireConfirmation Boolean  @default(true)
-  publicBookingEnabled Boolean @default(false)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  companyId           String   @unique
-  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(cuid())
+  autoTransfer         Boolean  @default(true)
+  autoReminders        Boolean  @default(true)
+  requireConfirmation  Boolean  @default(true)
+  publicBookingEnabled Boolean  @default(false)
+  timezone             String   @default("America/Sao_Paulo")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  companyId            String   @unique
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("company_settings")
 }
@@ -148,12 +152,13 @@ model AIConfig {
 }
 
 model Service {
-  id         String   @id @default(cuid())
-  name       String
-  price      String
-  aiConfigId String
-  createdAt  DateTime @default(now())
-  aiConfig   AIConfig @relation(fields: [aiConfigId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  name            String
+  price           String
+  durationMinutes Int      @default(30)
+  aiConfigId      String
+  createdAt       DateTime @default(now())
+  aiConfig        AIConfig @relation(fields: [aiConfigId], references: [id], onDelete: Cascade)
 
   @@index([aiConfigId])
   @@map("services")
@@ -189,6 +194,7 @@ model Client {
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   conversations Conversation[]
 
+  @@unique([companyId, phone])
   @@index([companyId])
   @@index([phone])
   @@index([name])
@@ -212,6 +218,7 @@ model Appointment {
   company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, date])
+  @@index([clientId])
   @@map("appointments")
 }
 
@@ -240,6 +247,7 @@ model Conversation {
   @@index([status])
   @@index([phone])
   @@index([handledById])
+  @@index([clientId])
   @@map("conversations")
 }
 
@@ -250,6 +258,7 @@ model Message {
   type           String       @default("text")
   createdAt      DateTime     @default(now())
   conversationId String
+  externalId     String?      @unique
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
@@ -271,6 +280,7 @@ model Upload {
   uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
 
   @@index([companyId])
+  @@index([uploadedById])
   @@map("uploads")
 }
 
@@ -300,7 +310,8 @@ model AuditLog {
 model ApiKey {
   id         String    @id @default(cuid())
   name       String
-  key        String    @unique
+  keyHash    String    @unique
+  keyPrefix  String
   lastUsedAt DateTime?
   expiresAt  DateTime?
   isActive   Boolean   @default(true)
@@ -308,7 +319,7 @@ model ApiKey {
   companyId  String
   company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@index([key])
+  @@index([keyPrefix])
   @@index([companyId])
   @@map("api_keys")
 }
@@ -319,15 +330,39 @@ model WebhookEvent {
   event       String
   payload     Json
   signature   String?
+  externalId  String?
   status      String    @default("received")
+  attempts    Int       @default(0)
+  availableAt DateTime  @default(now())
+  claimedAt   DateTime?
   processedAt DateTime?
   error       String?
   companyId   String?
   createdAt   DateTime  @default(now())
 
   @@unique([provider, signature])
+  @@unique([provider, externalId])
   @@index([provider, status])
+  @@index([status, availableAt])
   @@map("webhook_events")
+}
+
+model DemoLead {
+  id             String   @id @default(cuid())
+  name           String
+  email          String
+  phone          String
+  company        String?
+  consentAt      DateTime
+  source         String   @default("landing")
+  status         String   @default("new")
+  ipHash         String?
+  retentionUntil DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([retentionUntil])
+  @@map("demo_leads")
 }
 
 model RateLimit {
@@ -381,6 +416,7 @@ model Subscription {
   expiresAt       DateTime?
   nextBillingDate DateTime?
   canceledAt      DateTime?
+  lastStripeEventAt DateTime?
   couponId        String?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -393,6 +429,7 @@ model Subscription {
 
   @@index([planId])
   @@index([status])
+  @@index([couponId])
   @@map("subscriptions")
 }
 
@@ -411,6 +448,7 @@ model BillingHistory {
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
 
   @@index([companyId, createdAt])
+  @@index([subscriptionId])
   @@map("billing_history")
 }
 

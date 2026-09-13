@@ -76,9 +76,7 @@ describe("generateAIResponse (fachada)", () => {
     });
 
     expect(mockedCreateDefaultDeps).not.toHaveBeenCalled();
-    expect(mockedProcessMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ deps: injected })
-    );
+    expect(mockedProcessMessage).toHaveBeenCalledWith(expect.objectContaining({ deps: injected }));
   });
 
   it("deve repassar o intentFallback quando informado", async () => {

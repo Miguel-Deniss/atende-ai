@@ -1,9 +1,6 @@
-import { prisma } from "@/lib/db/prisma";
 import { getCurrentUser } from "@/lib/auth/session";
 import { errorResponse, unauthorizedResponse, forbiddenResponse } from "@/lib/auth/api-response";
 import { logger } from "@/lib/logger/structured";
-import { isCompanyAdmin } from "@/lib/auth/permissions";
-import type { LimitCheck } from "./plan-limits";
 
 export interface TenantContext {
   userId: string;
@@ -36,7 +33,10 @@ export async function resolveTenant(
 
   if (options.requireRole && options.requireRole.length > 0) {
     if (!options.requireRole.includes(user.role)) {
-      return { context: null, response: forbiddenResponse("Acesso não autorizado para esta função") };
+      return {
+        context: null,
+        response: forbiddenResponse("Acesso não autorizado para esta função"),
+      };
     }
   }
 
@@ -69,7 +69,7 @@ export async function withTenantGuard<T>(
   return handler(result.context);
 }
 
-export async function validateResourceAccess<T extends { companyId: string }>(
+export async function validateResourceAccess<T extends { id?: string; companyId: string }>(
   resource: T | null,
   context: TenantContext,
   resourceName: string
@@ -82,12 +82,12 @@ export async function validateResourceAccess<T extends { companyId: string }>(
     };
   }
 
-  if (resource.companyId !== context.companyId && !isCompanyAdmin(context.role)) {
+  if (resource.companyId !== context.companyId) {
     logger.warn(`IDOR attempt blocked`, {
       action: "idor_blocked",
       userId: context.userId,
       companyId: context.companyId,
-      metadata: { resourceName, resourceId: (resource as any).id },
+      metadata: { resourceName, resourceId: resource.id },
     });
     return {
       resource: null,
@@ -106,13 +106,16 @@ export async function enforceResourceAccess(
   resourceName: string
 ): Promise<boolean> {
   if (!resourceId || !companyId) return false;
-  if (isCompanyAdmin(context.role)) return true;
-
   if (companyId !== context.companyId) {
     logger.warn(`IDOR attempt on ${resourceName}`, {
       action: "idor_blocked",
       userId: context.userId,
-      metadata: { resourceName, resourceId, requestedCompanyId: companyId, userCompanyId: context.companyId },
+      metadata: {
+        resourceName,
+        resourceId,
+        requestedCompanyId: companyId,
+        userCompanyId: context.companyId,
+      },
     });
     return false;
   }

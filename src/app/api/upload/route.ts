@@ -9,6 +9,8 @@ import { writeFile, mkdir, unlink } from "fs/promises";
 import { guardRateLimit } from "@/lib/rate-limit/with-rate-limit";
 import path from "path";
 import crypto from "crypto";
+import { hasValidFileSignature } from "@/lib/storage/file-validation";
+import { getPlanLimits } from "@/lib/tenant/plan-limits";
 
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",
@@ -24,17 +26,49 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 const ALLOWED_EXTENSIONS = [
-  ".jpg", ".jpeg", ".png", ".webp", ".gif",
-  ".pdf", ".txt", ".doc", ".docx", ".xls", ".xlsx",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".pdf",
+  ".txt",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
 ];
 
 const MAX_FILE_SIZE = parseInt(process.env.MAX_UPLOAD_SIZE || "5242880", 10);
 
 const BLOCKED_EXTENSIONS = [
-  ".exe", ".bat", ".cmd", ".com", ".msi", ".scr", ".pif",
-  ".sh", ".bash", ".vbs", ".ps1", ".js", ".jse", ".wsf",
-  ".wsh", ".hta", ".vbe", ".rb", ".py", ".pl", ".php",
-  ".asp", ".aspx", ".cer", ".cgi", ".dll", ".jar",
+  ".exe",
+  ".bat",
+  ".cmd",
+  ".com",
+  ".msi",
+  ".scr",
+  ".pif",
+  ".sh",
+  ".bash",
+  ".vbs",
+  ".ps1",
+  ".js",
+  ".jse",
+  ".wsf",
+  ".wsh",
+  ".hta",
+  ".vbe",
+  ".rb",
+  ".py",
+  ".pl",
+  ".php",
+  ".asp",
+  ".aspx",
+  ".cer",
+  ".cgi",
+  ".dll",
+  ".jar",
 ];
 
 function logUploadError(error: unknown, companyId?: string, userId?: string) {
@@ -73,12 +107,25 @@ export async function POST(request: NextRequest) {
       return errorResponse("Nenhum arquivo enviado", 400);
     }
 
+    const [uploadCount, aggregate] = await Promise.all([
+      prisma.upload.count({ where: { companyId } }),
+      prisma.upload.aggregate({ where: { companyId }, _sum: { size: true } }),
+    ]);
+    const limits = getPlanLimits(user.company.planType);
+    const nextStorageMB = ((aggregate._sum.size ?? 0) + file.size) / (1024 * 1024);
+    if (uploadCount >= limits.maxUploads || nextStorageMB > limits.maxStorageMB) {
+      return errorResponse("Limite de armazenamento do plano atingido", 403);
+    }
+
     if (file.size > MAX_FILE_SIZE) {
       logger.warn("Upload rejeitado: arquivo acima do limite", {
         action: "upload_too_large",
         metadata: { companyId, size: file.size, maxFileSize: MAX_FILE_SIZE },
       });
-      return errorResponse(`Arquivo muito grande. Máximo permitido: ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`, 400);
+      return errorResponse(
+        `Arquivo muito grande. Máximo permitido: ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`,
+        400
+      );
     }
 
     const ext = path.extname(file.name).toLowerCase();
@@ -102,15 +149,22 @@ export async function POST(request: NextRequest) {
       return errorResponse("Tipo MIME não permitido", 400);
     }
 
+    const buffer = Buffer.from(await file.arrayBuffer());
+    if (!hasValidFileSignature(file.name, buffer)) {
+      return errorResponse("O conteúdo do arquivo não corresponde ao formato informado", 400);
+    }
+
     const safeName = sanitizeFilename(file.name);
     const storedName = `${crypto.randomUUID()}${ext}`;
-    const uploadDir = process.env.UPLOAD_DIR || "uploads";
-    const companyDir = path.join(process.cwd(), "public", uploadDir, companyId);
+    const configuredUploadDir = process.env.UPLOAD_DIR || "uploads";
+    const uploadRoot = path.isAbsolute(configuredUploadDir)
+      ? configuredUploadDir
+      : path.resolve(process.cwd(), configuredUploadDir);
+    const companyDir = path.join(uploadRoot, companyId);
     filePath = path.join(companyDir, storedName);
 
     try {
       await mkdir(companyDir, { recursive: true });
-      const buffer = Buffer.from(await file.arrayBuffer());
       await writeFile(filePath, buffer);
     } catch (fsError) {
       logger.error("Falha ao gravar arquivo no disco", {
@@ -121,12 +175,14 @@ export async function POST(request: NextRequest) {
       return errorResponse("Não foi possível salvar o arquivo. Tente novamente.", 500);
     }
 
-    const url = `/${uploadDir}/${companyId}/${storedName}`;
+    const uploadId = crypto.randomUUID();
+    const url = `/api/files/${uploadId}`;
 
     let upload;
     try {
       upload = await prisma.upload.create({
         data: {
+          id: uploadId,
           originalName: safeName,
           storedName,
           mimeType: file.type,
@@ -147,7 +203,7 @@ export async function POST(request: NextRequest) {
       return errorResponse("Não foi possível registrar o arquivo. Tente novamente.", 500);
     }
 
-    return successResponse({ url, name: storedName, size: file.size, id: upload?.id });
+    return successResponse({ url, name: safeName, size: file.size, id: upload?.id });
   } catch (error) {
     logUploadError(error, companyId, userId);
     return errorResponse("Erro inesperado ao processar o upload. Tente novamente.", 500);

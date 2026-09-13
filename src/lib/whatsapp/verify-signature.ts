@@ -1,18 +1,12 @@
 import crypto from "crypto";
 
-export function verifyMetaSignature(
-  body: string,
-  signature: string | null
-): boolean {
+export function verifyMetaSignature(body: string, signature: string | null): boolean {
   const appSecret = process.env.META_APP_SECRET;
-  if (!appSecret) return true;
+  if (!appSecret) return false;
 
   if (!signature || !signature.startsWith("sha256=")) return false;
 
-  const expectedSig = crypto
-    .createHmac("sha256", appSecret)
-    .update(body)
-    .digest("hex");
+  const expectedSig = crypto.createHmac("sha256", appSecret).update(body).digest("hex");
 
   const actualSig = signature.replace("sha256=", "");
 

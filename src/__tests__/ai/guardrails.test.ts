@@ -54,10 +54,7 @@ describe("containsInventedInfo", () => {
   });
 
   it("deve retornar null para empresa sem aiConfig", () => {
-    const issue = containsInventedInfo(
-      "Claro! Qual serviço deseja?",
-      { name: "Loja" }
-    );
+    const issue = containsInventedInfo("Claro! Qual serviço deseja?", { name: "Loja" });
     expect(issue).toBeNull();
   });
 });

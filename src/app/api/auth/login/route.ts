@@ -6,7 +6,6 @@ import { loginSchema } from "@/lib/validators/auth";
 import { successResponse, errorResponse, rateLimitResponse } from "@/lib/auth/api-response";
 import { checkLoginRateLimit, getRateLimitHeaders, resetLoginAttempts } from "@/lib/rate-limit";
 import { createLog } from "@/lib/logger";
-import { verifyToken } from "@/lib/auth/jwt";
 import { verifyTotp, verifyRecoveryCode } from "@/lib/auth/two-factor";
 
 export async function POST(request: NextRequest) {
@@ -15,15 +14,12 @@ export async function POST(request: NextRequest) {
     const parsed = loginSchema.safeParse(body);
 
     if (!parsed.success) {
-      return errorResponse(
-        "Dados inválidos",
-        400,
-        parsed.error.flatten().fieldErrors
-      );
+      return errorResponse("Dados inválidos", 400, parsed.error.flatten().fieldErrors);
     }
 
     const { email, password, totpCode, recoveryCode, rememberMe } = parsed.data;
-    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    const ip =
+      request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
     const userAgent = request.headers.get("user-agent") || undefined;
 
     const rateCheck = await checkLoginRateLimit(`login:${ip}`);
@@ -89,40 +85,61 @@ export async function POST(request: NextRequest) {
 
     if (!user.isActive) {
       return NextResponse.json(
-        { success: false, error: "Conta desativada. Entre em contato com o suporte.", code: "ACCOUNT_DISABLED" },
+        {
+          success: false,
+          error: "Conta desativada. Entre em contato com o suporte.",
+          code: "ACCOUNT_DISABLED",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (!user.emailVerified) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Confirme seu e-mail antes de entrar.",
+          code: "EMAIL_NOT_VERIFIED",
+        },
         { status: 403 }
       );
     }
 
     if (user.company.status === "SUSPENDED") {
       return NextResponse.json(
-        { success: false, error: "Sua assinatura encontra-se suspensa.", code: "COMPANY_SUSPENDED" },
+        {
+          success: false,
+          error: "Sua assinatura encontra-se suspensa.",
+          code: "COMPANY_SUSPENDED",
+        },
         { status: 403 }
       );
     }
 
     if (user.twoFactorEnabled) {
       if (!totpCode && !recoveryCode) {
-        return successResponse({
-          requiresTwoFactor: true,
-          userId: user.id,
-          message: "Código de autenticação em dois fatores necessário",
-        }, 200);
+        return successResponse(
+          {
+            requiresTwoFactor: true,
+            userId: user.id,
+            message: "Código de autenticação em dois fatores necessário",
+          },
+          200
+        );
       }
 
       if (!user.twoFactorSecret) {
         return errorResponse("2FA não configurado corretamente", 500);
       }
 
-      const totpValid =
-        totpCode != null && verifyTotp(user.twoFactorSecret, totpCode);
+      const totpValid = totpCode != null && verifyTotp(user.twoFactorSecret, totpCode);
 
       const recovery =
         !totpValid && recoveryCode != null
           ? verifyRecoveryCode(recoveryCode, user.twoFactorRecoveryCodes)
           : null;
 
-      if (!totpValid && !(recovery?.valid)) {
+      if (!totpValid && !recovery?.valid) {
         return errorResponse("Código 2FA inválido", 401);
       }
 
@@ -189,19 +206,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("🔥 ERRO LOGIN API:", error);
-
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: String(error),
-      }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-  };
-};
+    console.error("Login API error", error);
+    return errorResponse("Erro interno do servidor", 500);
+  }
+}

@@ -1,4 +1,4 @@
-import { jwtVerify } from "jose";
+import { jwtVerify } from "jose/jwt/verify";
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -9,11 +9,17 @@ function getJwtSecret(): string {
 }
 
 const secret = new TextEncoder().encode(getJwtSecret());
+const JWT_ISSUER = "atendeai";
+const JWT_AUDIENCE = "atendeai-web";
 
 export async function verifyEdgeToken(token: string) {
   try {
-    const { payload } = await jwtVerify(token, secret);
-    return payload;
+    const { payload } = await jwtVerify(token, secret, {
+      algorithms: ["HS256"],
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    });
+    return payload.type === "access" && payload.sessionToken ? payload : null;
   } catch {
     return null;
   }

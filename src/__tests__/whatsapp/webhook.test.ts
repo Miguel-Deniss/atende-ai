@@ -5,10 +5,13 @@ vi.mock("@/lib/db/prisma", () => ({
     whatsAppConfig: { findFirst: vi.fn() },
     conversation: {
       findFirst: vi.fn(),
+      count: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
     },
     message: {
+      findUnique: vi.fn(),
+      count: vi.fn(),
       create: vi.fn(),
     },
     company: {
@@ -48,17 +51,11 @@ vi.mock("@/lib/whatsapp/send-message", () => ({
 import { prisma } from "@/lib/db/prisma";
 import { createLog } from "@/lib/logger";
 import { decrypt } from "@/lib/security/encryption";
-import {
-  processMessage,
-  createDefaultDeps,
-} from "@/lib/ai/conversation-manager";
+import { processMessage, createDefaultDeps } from "@/lib/ai/conversation-manager";
 import { loadConversationContext } from "@/lib/ai/context-loader";
 import { findOrCreateWhatsAppClient } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/send-message";
-import {
-  extractIncomingMessages,
-  processWhatsAppWebhook,
-} from "@/lib/whatsapp/webhook";
+import { extractIncomingMessages, processWhatsAppWebhook } from "@/lib/whatsapp/webhook";
 import type { WhatsAppWebhookPayload } from "@/lib/whatsapp/types";
 
 function makePayload(
@@ -148,9 +145,7 @@ describe("extractIncomingMessages", () => {
                   display_phone_number: "16505551111",
                   phone_number_id: "PHONE_A",
                 },
-                statuses: [
-                  { id: "s1", status: "delivered", timestamp: "1700000000" },
-                ],
+                statuses: [{ id: "s1", status: "delivered", timestamp: "1700000000" }],
               },
             },
           ],
@@ -164,6 +159,9 @@ describe("extractIncomingMessages", () => {
 describe("processWhatsAppWebhook", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.message.count).mockResolvedValue(0 as never);
+    vi.mocked(prisma.conversation.count).mockResolvedValue(0 as never);
     vi.mocked(decrypt).mockReturnValue("decrypted-token");
     vi.mocked(loadConversationContext).mockResolvedValue(contextRow as never);
     vi.mocked(processMessage).mockResolvedValue({
@@ -199,11 +197,7 @@ describe("processWhatsAppWebhook", () => {
       where: { phoneNumberId: "PHONE_A", status: "CONNECTED" },
     });
 
-    expect(findOrCreateWhatsAppClient).toHaveBeenCalledWith(
-      "company-1",
-      "5511999999999",
-      "João"
-    );
+    expect(findOrCreateWhatsAppClient).toHaveBeenCalledWith("company-1", "5511999999999", "João");
 
     expect(prisma.conversation.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -218,6 +212,7 @@ describe("processWhatsAppWebhook", () => {
     expect(processMessage).toHaveBeenCalledWith({
       conversationId: "conv-1",
       message: "Quero agendar",
+      userMessageExternalId: "wamid.5511999999999",
       company: { name: "Barbearia A" },
       knownName: "João",
       deps: {},
@@ -277,6 +272,7 @@ describe("processWhatsAppWebhook", () => {
       data: {
         conversationId: "conv-1",
         role: "user",
+        externalId: "wamid.5511999999999",
         content: "Preciso falar com alguém",
       },
     });
@@ -321,13 +317,9 @@ describe("processWhatsAppWebhook", () => {
       whatsappName: null,
     } as never);
 
-    await processWhatsAppWebhook(
-      makePayload("PHONE_A", "5511999999999", "Oi")
-    );
+    await processWhatsAppWebhook(makePayload("PHONE_A", "5511999999999", "Oi"));
 
-    expect(processMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ knownName: null })
-    );
+    expect(processMessage).toHaveBeenCalledWith(expect.objectContaining({ knownName: null }));
   });
 
   it("deve registrar falha quando o processamento lança erro", async () => {
@@ -336,9 +328,7 @@ describe("processWhatsAppWebhook", () => {
     vi.mocked(prisma.conversation.create).mockResolvedValue({ id: "conv-1" } as never);
     vi.mocked(processMessage).mockRejectedValue(new Error("A IA gerou resposta invalida."));
 
-    const result = await processWhatsAppWebhook(
-      makePayload("PHONE_A", "5511999999999", "Oi")
-    );
+    const result = await processWhatsAppWebhook(makePayload("PHONE_A", "5511999999999", "Oi"));
 
     expect(result.failed).toBe(1);
     expect(result.errors).toContain("A IA gerou resposta invalida.");
@@ -420,9 +410,7 @@ describe("processWhatsAppWebhook", () => {
       throw new Error("Invalid encrypted text format");
     });
 
-    const result = await processWhatsAppWebhook(
-      makePayload("PHONE_A", "5511999999999", "Oi")
-    );
+    const result = await processWhatsAppWebhook(makePayload("PHONE_A", "5511999999999", "Oi"));
 
     expect(result.failed).toBe(1);
     expect(result.errors[0]).toContain("descriptografar");

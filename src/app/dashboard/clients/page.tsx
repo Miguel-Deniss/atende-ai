@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 
@@ -105,7 +105,10 @@ export default function ClientsPage() {
       >
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Clientes</h1>
-          <p className="text-gray-500 text-sm">{filtered.length} cliente{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}</p>
+          <p className="text-gray-500 text-sm">
+            {filtered.length} cliente{filtered.length !== 1 ? "s" : ""} encontrado
+            {filtered.length !== 1 ? "s" : ""}
+          </p>
         </div>
         <Button className="flex items-center gap-2" onClick={() => setModalOpen(true)}>
           <UserPlus className="w-4 h-4" />
@@ -148,11 +151,21 @@ export default function ClientsPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border/50">
-                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">Cliente</th>
-                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">Telefone</th>
-                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">Último Serviço</th>
-                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">Data</th>
-                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">Status</th>
+                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">
+                        Cliente
+                      </th>
+                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">
+                        Telefone
+                      </th>
+                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">
+                        Último Serviço
+                      </th>
+                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">
+                        Data
+                      </th>
+                      <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">
+                        Status
+                      </th>
                       <th className="w-10 pb-3 px-2" />
                     </tr>
                   </thead>
@@ -213,24 +226,48 @@ export default function ClientsPage() {
       </motion.div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Cliente">
-        <form onSubmit={(e) => { e.preventDefault(); handleAdd(); }} className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleAdd();
+          }}
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <Label htmlFor="new-name">Nome *</Label>
-            <Input id="new-name" placeholder="Nome do cliente" value={newClient.name}
-              onChange={(e) => setNewClient((p) => ({ ...p, name: e.target.value }))} autoFocus />
+            <Input
+              id="new-name"
+              placeholder="Nome do cliente"
+              value={newClient.name}
+              onChange={(e) => setNewClient((p) => ({ ...p, name: e.target.value }))}
+              autoFocus
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="new-phone">Telefone *</Label>
-            <Input id="new-phone" placeholder="(11) 99999-0000" value={newClient.phone}
-              onChange={(e) => setNewClient((p) => ({ ...p, phone: e.target.value }))} />
+            <Input
+              id="new-phone"
+              placeholder="(11) 99999-0000"
+              value={newClient.phone}
+              onChange={(e) => setNewClient((p) => ({ ...p, phone: e.target.value }))}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="new-service">Serviço</Label>
-            <Input id="new-service" placeholder="Último serviço realizado" value={newClient.lastService}
-              onChange={(e) => setNewClient((p) => ({ ...p, lastService: e.target.value }))} />
+            <Input
+              id="new-service"
+              placeholder="Último serviço realizado"
+              value={newClient.lastService}
+              onChange={(e) => setNewClient((p) => ({ ...p, lastService: e.target.value }))}
+            />
           </div>
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => setModalOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => setModalOpen(false)}
+            >
               Cancelar
             </Button>
             <Button type="submit" className="flex-1" disabled={saving}>

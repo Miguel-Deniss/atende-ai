@@ -1,9 +1,5 @@
 import { escapeRegExp, normalizeText } from "./text";
-import type {
-  CompanyContext,
-  ConversationSlots,
-  ConversationState,
-} from "./types";
+import type { CompanyContext, ConversationSlots, ConversationState } from "./types";
 
 export interface ExtractionResult {
   slots: Partial<ConversationSlots>;
@@ -132,10 +128,7 @@ const NAME_PATTERNS: RegExp[] = [
   /\bnome\s*:\s*([A-Za-zÀ-ÖØ-öø-ÿ]+)\b/i,
 ];
 
-export function extractName(
-  message: string,
-  state: ConversationState
-): string | null {
+export function extractName(message: string, state: ConversationState): string | null {
   const trimmed = message.trim();
 
   for (const pattern of NAME_PATTERNS) {

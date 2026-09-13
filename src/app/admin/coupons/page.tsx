@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Search, TicketPercent, Loader2, Plus, Trash2, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 
 interface Coupon {
@@ -46,16 +52,18 @@ export default function AdminCouponsPage() {
     allowedPlans: [] as string[],
   });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/admin/coupons", { credentials: "include" });
     const data = await res.json();
     if (data.success) setCoupons(data.data);
     else toast(data.error || "Erro ao carregar cupons", "error");
     setLoading(false);
-  };
+  }, [toast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = coupons.filter(
     (c) => c.code.toLowerCase().includes(search.toLowerCase()) || !search
@@ -63,7 +71,15 @@ export default function AdminCouponsPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ code: "", discountType: "PERCENTAGE", discountValue: "10", maxUses: "", validUntil: "", isActive: true, allowedPlans: [] });
+    setForm({
+      code: "",
+      discountType: "PERCENTAGE",
+      discountValue: "10",
+      maxUses: "",
+      validUntil: "",
+      isActive: true,
+      allowedPlans: [],
+    });
     setModalOpen(true);
   };
 
@@ -157,11 +173,17 @@ export default function AdminCouponsPage() {
   };
 
   const discountLabel = (c: Coupon) =>
-    c.discountType === "PERCENTAGE" ? `${c.discountValue}%` : `R$ ${(c.discountValue / 100).toFixed(2)}`;
+    c.discountType === "PERCENTAGE"
+      ? `${c.discountValue}%`
+      : `R$ ${(c.discountValue / 100).toFixed(2)}`;
 
   return (
     <div className="space-y-8">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-start justify-between"
+      >
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Cupons</h1>
           <p className="text-gray-500 text-sm">{filtered.length} cupons</p>
@@ -175,8 +197,12 @@ export default function AdminCouponsPage() {
         <CardHeader className="pb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <Input placeholder="Buscar por código..." className="pl-10"
-              value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input
+              placeholder="Buscar por código..."
+              className="pl-10"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -191,24 +217,41 @@ export default function AdminCouponsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border/50">
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">Código</th>
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">Desconto</th>
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">Usos</th>
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden lg:table-cell">Validade</th>
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">Planos</th>
-                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">Status</th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">
+                      Código
+                    </th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">
+                      Desconto
+                    </th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">
+                      Usos
+                    </th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden lg:table-cell">
+                      Validade
+                    </th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2 hidden md:table-cell">
+                      Planos
+                    </th>
+                    <th className="text-left text-xs font-medium text-gray-500 pb-3 px-2">
+                      Status
+                    </th>
                     <th className="w-24 pb-3 px-2" />
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((coupon) => (
-                    <tr key={coupon.id} className="border-b border-border/30 hover:bg-secondary/20 transition-colors">
+                    <tr
+                      key={coupon.id}
+                      className="border-b border-border/30 hover:bg-secondary/20 transition-colors"
+                    >
                       <td className="py-3 px-2">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-400 flex items-center justify-center">
                             <TicketPercent className="w-4 h-4 text-white" />
                           </div>
-                          <span className="text-sm font-mono font-medium text-white">{coupon.code}</span>
+                          <span className="text-sm font-mono font-medium text-white">
+                            {coupon.code}
+                          </span>
                         </div>
                       </td>
                       <td className="py-3 px-2 text-sm text-gray-300">{discountLabel(coupon)}</td>
@@ -223,10 +266,14 @@ export default function AdminCouponsPage() {
                       <td className="py-3 px-2 hidden md:table-cell">
                         <div className="flex gap-1 flex-wrap">
                           {coupon.allowedPlans.length === 0 ? (
-                            <Badge variant="secondary" className="text-[10px]">Todos</Badge>
+                            <Badge variant="secondary" className="text-[10px]">
+                              Todos
+                            </Badge>
                           ) : (
                             coupon.allowedPlans.map((p) => (
-                              <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
+                              <Badge key={p} variant="outline" className="text-[10px]">
+                                {p}
+                              </Badge>
                             ))
                           )}
                         </div>
@@ -240,12 +287,16 @@ export default function AdminCouponsPage() {
                       </td>
                       <td className="py-3 px-2">
                         <div className="flex gap-1">
-                          <button onClick={() => openEdit(coupon)}
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-secondary/30 transition-colors">
+                          <button
+                            onClick={() => openEdit(coupon)}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-secondary/30 transition-colors"
+                          >
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => remove(coupon)}
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-secondary/30 transition-colors">
+                          <button
+                            onClick={() => remove(coupon)}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-secondary/30 transition-colors"
+                          >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -259,20 +310,34 @@ export default function AdminCouponsPage() {
         </CardContent>
       </Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)}
-        title={editing ? `Editar ${editing.code}` : "Novo Cupom"}>
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? `Editar ${editing.code}` : "Novo Cupom"}
+      >
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="code">Código</Label>
-            <Input id="code" placeholder="EX: BEMVINDO10" value={form.code}
-              onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} />
+            <Input
+              id="code"
+              placeholder="EX: BEMVINDO10"
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Tipo</Label>
-              <Select value={form.discountType} onValueChange={(v) => setForm({ ...form, discountType: v as "PERCENTAGE" | "FIXED" })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={form.discountType}
+                onValueChange={(v) =>
+                  setForm({ ...form, discountType: v as "PERCENTAGE" | "FIXED" })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PERCENTAGE">Porcentagem</SelectItem>
                   <SelectItem value="FIXED">Valor fixo</SelectItem>
@@ -281,23 +346,34 @@ export default function AdminCouponsPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Valor</Label>
-              <Input type="number" min="1" placeholder={form.discountType === "PERCENTAGE" ? "10" : "5000"}
+              <Input
+                type="number"
+                min="1"
+                placeholder={form.discountType === "PERCENTAGE" ? "10" : "5000"}
                 value={form.discountValue}
-                onChange={(e) => setForm({ ...form, discountValue: e.target.value })} />
+                onChange={(e) => setForm({ ...form, discountValue: e.target.value })}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Limite de usos (opcional)</Label>
-              <Input type="number" min="1" placeholder="Sem limite"
+              <Input
+                type="number"
+                min="1"
+                placeholder="Sem limite"
                 value={form.maxUses}
-                onChange={(e) => setForm({ ...form, maxUses: e.target.value })} />
+                onChange={(e) => setForm({ ...form, maxUses: e.target.value })}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Validade (opcional)</Label>
-              <Input type="datetime-local" value={form.validUntil}
-                onChange={(e) => setForm({ ...form, validUntil: e.target.value })} />
+              <Input
+                type="datetime-local"
+                value={form.validUntil}
+                onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
+              />
             </div>
           </div>
 
@@ -305,9 +381,13 @@ export default function AdminCouponsPage() {
             <Label>Planos permitidos</Label>
             <div className="flex gap-2 flex-wrap">
               {PLANS.map((plan) => (
-                <Button key={plan} size="sm" type="button"
+                <Button
+                  key={plan}
+                  size="sm"
+                  type="button"
                   variant={form.allowedPlans.includes(plan) ? "default" : "outline"}
-                  onClick={() => togglePlan(plan)}>
+                  onClick={() => togglePlan(plan)}
+                >
                   {plan === "FREE" ? "Free" : plan.charAt(0) + plan.slice(1).toLowerCase()}
                 </Button>
               ))}
@@ -317,13 +397,18 @@ export default function AdminCouponsPage() {
 
           <div className="flex items-center justify-between pt-2 border-t border-border/30">
             <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
-              <input type="checkbox" checked={form.isActive}
+              <input
+                type="checkbox"
+                checked={form.isActive}
                 onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                className="rounded border-border bg-transparent" />
+                className="rounded border-border bg-transparent"
+              />
               Cupom ativo
             </label>
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
+              <Button variant="ghost" onClick={() => setModalOpen(false)}>
+                Cancelar
+              </Button>
               <Button onClick={save} disabled={saving}>
                 {saving && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
                 {editing ? "Salvar" : "Criar"}

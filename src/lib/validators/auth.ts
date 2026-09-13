@@ -57,23 +57,27 @@ export const profileUpdateSchema = z.object({
   email: z.string().email().max(255).optional(),
 });
 
-export const clientSchema = z.object({
-  name: z.string().min(1, "Nome e obrigatorio").max(255),
-  phone: z.string().min(1, "Telefone e obrigatorio").max(20),
-  email: z.string().email().max(255).optional(),
-  lastService: z.string().max(255).optional(),
-  notes: z.string().max(1000).optional(),
-  status: z.enum(["active", "inactive"]).optional(),
-});
+export const clientSchema = z
+  .object({
+    name: z.string().min(1, "Nome e obrigatorio").max(255),
+    phone: z.string().min(1, "Telefone e obrigatorio").max(20),
+    email: z.string().email().max(255).optional(),
+    lastService: z.string().max(255).optional(),
+    notes: z.string().max(1000).optional(),
+    status: z.enum(["active", "inactive"]).optional(),
+  })
+  .strict();
 
-export const appointmentSchema = z.object({
-  time: z.string().regex(/^\d{2}:\d{2}$/, "Horario invalido"),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data invalida"),
-  name: z.string().min(1, "Nome e obrigatorio").max(255),
-  service: z.string().min(1, "Servico e obrigatorio").max(255),
-  clientId: z.string().optional(),
-  status: z.enum(["confirmed", "pending"]).optional(),
-});
+export const appointmentSchema = z
+  .object({
+    time: z.string().regex(/^\d{2}:\d{2}$/, "Horario invalido"),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data invalida"),
+    name: z.string().min(1, "Nome e obrigatorio").max(255),
+    service: z.string().min(1, "Servico e obrigatorio").max(255),
+    clientId: z.string().min(1).max(255).optional(),
+    status: z.enum(["confirmed", "pending"]).optional(),
+  })
+  .strict();
 
 export const companySettingsSchema = z.object({
   companyName: z.string().min(1).max(255).optional(),
@@ -117,6 +121,20 @@ export const publicBookingSchema = z.object({
   service: z.string().min(1, "Serviço é obrigatório").max(255),
 });
 
+export const conversationPatchSchema = z
+  .object({
+    status: z.enum(["OPEN", "CLOSED"]).optional(),
+    unread: z.boolean().optional(),
+  })
+  .strict();
+
+export const conversationCreateSchema = z
+  .object({
+    phone: z.string().min(10, "Telefone inválido").max(20),
+    name: z.string().trim().min(1).max(255).optional(),
+  })
+  .strict();
+
 export const whatsAppConnectSchema = z.object({
   phoneNumberId: z.string().min(1, "Phone Number ID é obrigatório"),
   businessAccountId: z.string().min(1, "Business Account ID é obrigatório"),
@@ -144,10 +162,7 @@ const companyAssignableRoles = ["ATTENDANT", "EMPLOYEE", "FINANCIAL"] as const;
 export const createUserSchema = z.object({
   name: z.string().min(2, "Nome deve ter no minimo 2 caracteres").max(255),
   email: z.string().email("Email invalido").max(255),
-  password: z
-    .string()
-    .min(8, "Senha deve ter no minimo 8 caracteres")
-    .max(128),
+  password: z.string().min(8, "Senha deve ter no minimo 8 caracteres").max(128),
   role: z.enum(companyAssignableRoles, {
     message: "Papel nao permitido para gestao pela empresa",
   }),
