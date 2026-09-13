@@ -18,26 +18,35 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params;
 
-    const context = await loadConversationContext(id, user.companyId);
+    const context = await prisma.conversation.findFirst({
+      where: { id, companyId: user.companyId, deletedAt: null },
+      select: { id: true },
+    });
 
     if (!context) {
       return notFoundResponse("Conversa não encontrada");
     }
 
-    const messages = await prisma.message.findMany({
-      where: {
-        conversationId: id,
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    });
+    const [messages, readUpdate] = await Promise.all([
+      prisma.message.findMany({
+        where: {
+          conversationId: id,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      }),
+      prisma.conversation.updateMany({
+        where: { id, companyId: user.companyId, unread: true },
+        data: { unread: false },
+      }),
+    ]);
 
-    await prisma.conversation.update({
-      where: { id },
-      data: { unread: false },
-    });
-    publish(user.companyId, "conversation", { id });
+    // Evita publicar um evento em toda leitura. Isso impedia um ciclo de
+    // EventSource -> GET -> publish -> GET na tela de conversa individual.
+    if (readUpdate.count > 0) {
+      publish(user.companyId, "conversation", { id });
+    }
 
     return successResponse(messages);
   } catch (error) {
@@ -54,13 +63,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { id } = await params;
 
-    const context = await loadConversationContext(id, user.companyId);
+    const [context, billing] = await Promise.all([
+      loadConversationContext(id, user.companyId),
+      enforceBilling(user.companyId),
+    ]);
 
     if (!context) {
       return notFoundResponse("Conversa não encontrada");
     }
 
-    const billing = await enforceBilling(user.companyId);
     if (!billing.allowed) {
       return errorResponse(`Acesso bloqueado: ${billing.reason}`, 402);
     }

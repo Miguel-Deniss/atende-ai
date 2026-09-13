@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 interface Message {
@@ -25,6 +25,8 @@ export default function ConversationPage() {
   const [input, setInput] = useState("");
 
   const [loading, setLoading] = useState(false);
+
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handled = Boolean(conversation?.handledBy);
 
@@ -60,21 +62,30 @@ export default function ConversationPage() {
 
     const es = new EventSource("/api/conversations/events");
 
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        void Promise.all([loadMessages(), loadConversation()]);
+      }, 100);
+    };
+
     es.addEventListener("message", (ev) => {
       try {
         const payload = JSON.parse((ev as MessageEvent).data);
-        if (payload?.conversationId === id) loadMessages();
+        if (payload?.conversationId === id) scheduleRefresh();
       } catch {
         console.error("Erro ao processar evento");
       }
     });
 
     es.addEventListener("conversation", () => {
-      loadConversation();
-      loadMessages();
+      scheduleRefresh();
     });
 
-    return () => es.close();
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      es.close();
+    };
   }, [id, loadConversation, loadMessages]);
 
   async function takeover() {

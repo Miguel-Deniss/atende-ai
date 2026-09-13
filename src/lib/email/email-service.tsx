@@ -32,6 +32,15 @@ export class EmailServiceError extends Error {
   }
 }
 
+function describeEmailError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "Erro desconhecido do provedor de e-mail";
+}
+
 async function sendEmail(options: SendEmailOptions): Promise<{ id: string }> {
   const { to, subject, template, templateName, companyId, userId, ipAddress, userAgent } = options;
 
@@ -109,7 +118,7 @@ async function logEmailEvent(
     ipAddress,
     userAgent,
     ...(error
-      ? { oldValues: { error: error instanceof Error ? error.message : String(error) } }
+      ? { oldValues: { error: describeEmailError(error) } }
       : {}),
   });
 }

@@ -30,35 +30,43 @@ export default function ConversationsPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  const realtimeConnectedRef = useRef(false);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedConversationsRef = useRef(false);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
   const loadConversations = useCallback(async () => {
     try {
-      setLoadingList(true);
+      if (!hasLoadedConversationsRef.current) setLoadingList(true);
       const res = await fetch("/api/conversations");
       const json = await res.json();
       if (json.success) setConversations(json.data ?? []);
     } catch {
       console.error("Erro ao carregar conversas");
     } finally {
+      hasLoadedConversationsRef.current = true;
       setLoadingList(false);
     }
   }, []);
 
   const loadMessages = useCallback(async () => {
-    if (!selectedId) return;
+    const conversationId = selectedIdRef.current;
+    if (!conversationId) return;
     try {
       setLoadingMessages(true);
-      const res = await fetch(`/api/conversations/${selectedId}/messages`);
+      const res = await fetch(`/api/conversations/${conversationId}/messages`);
       const json = await res.json();
-      if (json.success) setMessages(json.data ?? []);
+      if (json.success && selectedIdRef.current === conversationId) {
+        setMessages(json.data ?? []);
+      }
     } catch {
       console.error("Erro ao carregar mensagens");
     } finally {
       setLoadingMessages(false);
     }
-  }, [selectedId]);
+  }, []);
 
   async function sendMessage() {
     if (!input.trim() || !selectedId || sending) return;
@@ -72,8 +80,7 @@ export default function ConversationsPage() {
       const json = await res.json();
       if (json.success) {
         setInput("");
-        await loadMessages();
-        await loadConversations();
+        await Promise.all([loadMessages(), loadConversations()]);
       }
     } catch {
       console.error("Erro ao enviar mensagem");
@@ -111,6 +118,7 @@ export default function ConversationsPage() {
   }, [loadConversations]);
 
   useEffect(() => {
+    selectedIdRef.current = selectedId;
     setMessages([]);
     if (selectedId) loadMessages();
   }, [loadMessages, selectedId]);
@@ -124,31 +132,48 @@ export default function ConversationsPage() {
 
     const es = new EventSource("/api/conversations/events");
 
-    es.addEventListener("ready", () => {
-      loadConversations();
+    const scheduleRefresh = (includeMessages: boolean) => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        const jobs: Promise<void>[] = [loadConversations()];
+        if (includeMessages && selectedIdRef.current) jobs.push(loadMessages());
+        void Promise.all(jobs);
+      }, 100);
+    };
+
+    es.addEventListener("open", () => {
+      realtimeConnectedRef.current = true;
+    });
+
+    es.addEventListener("error", () => {
+      realtimeConnectedRef.current = false;
     });
 
     es.addEventListener("message", (ev) => {
+      let refreshMessages = false;
       try {
         const payload = JSON.parse((ev as MessageEvent).data);
-        if (payload?.conversationId === selectedId) {
-          loadMessages();
-        }
+        refreshMessages = payload?.conversationId === selectedIdRef.current;
       } catch {
         console.error("Erro ao processar evento");
       }
-      loadConversations();
+      scheduleRefresh(refreshMessages);
     });
 
     es.addEventListener("conversation", () => {
-      loadConversations();
+      scheduleRefresh(false);
     });
 
-    return () => es.close();
-  }, [loadConversations, loadMessages, selectedId]);
+    return () => {
+      realtimeConnectedRef.current = false;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      es.close();
+    };
+  }, [loadConversations, loadMessages]);
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (realtimeConnectedRef.current) return;
       loadConversations();
       if (selectedId) loadMessages();
     }, 20000);

@@ -54,27 +54,28 @@ export async function POST(request: NextRequest) {
 
     const validPassword = await verifyPassword(password, user.passwordHash);
     if (!validPassword) {
-      await prisma.loginAttempt.create({
-        data: {
+      await Promise.all([
+        prisma.loginAttempt.create({
+          data: {
+            userId: user.id,
+            email,
+            ipAddress: ip,
+            userAgent,
+            success: false,
+            reason: "invalid_password",
+          },
+        }),
+        createLog({
+          action: "LOGIN_FAILURE",
+          entity: "user",
+          entityId: user.id,
+          description: `Falha de login para ${email}`,
+          companyId: user.companyId,
           userId: user.id,
-          email,
           ipAddress: ip,
           userAgent,
-          success: false,
-          reason: "invalid_password",
-        },
-      });
-
-      await createLog({
-        action: "LOGIN_FAILURE",
-        entity: "user",
-        entityId: user.id,
-        description: `Falha de login para ${email}`,
-        companyId: user.companyId,
-        userId: user.id,
-        ipAddress: ip,
-        userAgent,
-      });
+        }),
+      ]);
 
       const response = errorResponse("Email ou senha inválidos", 401);
       for (const [key, value] of Object.entries(rateHeaders)) {
@@ -164,35 +165,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await setAuthCookies(user.id, user.companyId, user.role, ip, userAgent, rememberMe);
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date(), lastLoginIp: ip },
-    });
-
-    await prisma.loginAttempt.create({
-      data: {
+    await Promise.all([
+      setAuthCookies(user.id, user.companyId, user.role, ip, userAgent, rememberMe),
+      prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date(), lastLoginIp: ip },
+      }),
+      prisma.loginAttempt.create({
+        data: {
+          userId: user.id,
+          email,
+          ipAddress: ip,
+          userAgent,
+          success: true,
+        },
+      }),
+      resetLoginAttempts(`login:${ip}`),
+      createLog({
+        action: "LOGIN_SUCCESS",
+        entity: "user",
+        entityId: user.id,
+        description: `Login bem-sucedido: ${email}`,
+        companyId: user.companyId,
         userId: user.id,
-        email,
         ipAddress: ip,
         userAgent,
-        success: true,
-      },
-    });
-
-    await resetLoginAttempts(`login:${ip}`);
-
-    await createLog({
-      action: "LOGIN_SUCCESS",
-      entity: "user",
-      entityId: user.id,
-      description: `Login bem-sucedido: ${email}`,
-      companyId: user.companyId,
-      userId: user.id,
-      ipAddress: ip,
-      userAgent,
-    });
+      }),
+    ]);
 
     return successResponse({
       user: {

@@ -43,12 +43,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await sendVerificationEmail({
-      to: user.email,
-      verifyUrl: `${getAppUrl()}/verify-email?token=${token}`,
-      companyId: user.companyId,
-      userId: user.id,
-    });
+    try {
+      await sendVerificationEmail({
+        to: user.email,
+        verifyUrl: `${getAppUrl()}/verify-email?token=${token}`,
+        companyId: user.companyId,
+        userId: user.id,
+      });
+    } catch (error) {
+      await prisma.user.updateMany({
+        where: { id: user.id, emailVerificationToken: token },
+        data: { emailVerificationToken: null, emailVerificationExpires: null },
+      });
+      throw error;
+    }
 
     return successResponse({ message: genericMessage });
   } catch (error) {

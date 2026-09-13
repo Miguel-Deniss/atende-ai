@@ -15,6 +15,7 @@ export async function GET() {
     const conversations = await prisma.conversation.findMany({
       where: {
         companyId: user.companyId,
+        deletedAt: null,
       },
 
       orderBy: {
@@ -22,13 +23,6 @@ export async function GET() {
       },
 
       include: {
-        messages: {
-          take: 1,
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-
         handledBy: {
           select: {
             id: true,
@@ -44,8 +38,8 @@ export async function GET() {
       name: c.name,
       status: c.status,
       unread: c.unread,
-      lastMessage: c.messages[0]?.content ?? c.lastMessage,
-      lastMessageAt: c.messages[0]?.createdAt.toISOString() ?? c.lastMessageAt,
+      lastMessage: c.lastMessage,
+      lastMessageAt: c.lastMessageAt,
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
       clientId: c.clientId,
